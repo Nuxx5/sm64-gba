@@ -391,7 +391,7 @@ DEMO_CORE := $(filter-out build/armopt/harness_opt.o build/arm/stubs.o build/arm
              build/arm/mario_step.o
 DEMO_OBJS := build/demo/demo_main.o build/demo/render_build.o build/demo/render_iw.o \
              build/demo/hud.o build/demo/irq.o build/demo/render_tables.o build/demo/stubs.o \
-             build/demo/mannequin.o build/demo/skeleton.o
+             build/demo/mannequin.o build/demo/skeleton.o build/demo/coins.o
 DEMO_CFLAGS := -O2 -w -fno-strict-aliasing -Idemo
 
 # Imported assets (make import ROM=...): build/import/import_data.c, made from
@@ -417,7 +417,7 @@ build/demo/render_tables.c: tools/gen_render_tables.py | build/demo
 build/demo/render_tables.o: build/demo/render_tables.c
 	$(ARM_CC) $(ARM_ARCH) -O2 -c $< -o $@
 
-build/demo/demo_main.o: demo/demo_main.c demo/render.h demo/hud.h demo/mannequin.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) $(ANIM_SRC) | build/demo
+build/demo/demo_main.o: demo/demo_main.c demo/coins.h demo/render.h demo/hud.h demo/mannequin.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) $(ANIM_SRC) | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(CORE_CFLAGS) $(DEMO_DEFS) -Idemo -c $< -o $@
 
 build/demo/render_build.o: demo/render_build.c demo/render.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) | build/demo
@@ -452,6 +452,9 @@ build/demo/skeleton.o: build/demo/skeleton.c
 
 build/demo/mannequin.o: demo/mannequin.c demo/mannequin.h demo/render.h demo/gba.h $(DEMO_MODE_FILE) $(ANIM_SRC) | build/demo
 	$(ARM_CC) $(ARM_MODE) $(CORE_CFLAGS) $(DEMO_DEFS) -Idemo -c $< -o $@
+
+build/demo/coins.o: demo/coins.c demo/coins.h demo/render.h demo/gba.h | build/demo
+	$(ARM_CC) $(ARM_ARCH) $(CORE_CFLAGS) -Idemo -c $< -o $@
 
 build/demo/hud.o: demo/hud.c demo/hud.h demo/gba.h | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(DEMO_CFLAGS) -c $< -o $@

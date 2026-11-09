@@ -25,6 +25,7 @@
 #include "render.h"
 #include "hud.h"
 #include "mannequin.h"
+#include "coins.h"
 #ifdef DEMO_IMPORTED
 #include "import.h"
 #endif
@@ -303,6 +304,8 @@ static void show_loading(s32 idx) {
     hud_commit();
     mannequin_hide();
     mannequin_commit();
+    coins_hide();
+    coins_commit();
 }
 
 static void load_level(s32 idx) {
@@ -368,6 +371,7 @@ static void load_level(s32 idx) {
 #else
     render_set_palette(&kStyles[idx]);
 #endif
+    coins_load(idx);
     spawn_mario();
 #ifdef DEMO_BENCH
     sram_put(BENCH_LOADS_OFS + 2 * idx, gVBlankCount - v0, 2);
@@ -590,6 +594,7 @@ int main(void) {
     fill_words((u32 *) 0x06000000, 0, 2 * 0xA000 / 4);
     hud_init();
     mannequin_init();
+    coins_init();
 
     /* VBlank interrupt for frame pacing */
     REG_IME = 0;
@@ -643,6 +648,7 @@ int main(void) {
         t0 = cycles_now();
         mario_frame(keys, pressed);
         check_respawn();
+        coins_update(gMarioState->pos);
         t1 = cycles_now();
         camera_update(gMarioState, keys, &cam);
         player_from_mario(&player);
@@ -667,6 +673,8 @@ int main(void) {
         t2 = cycles_now();
         mannequinCycles = t2 - tm;
 #endif
+        coins_draw(&cam, q->farDist);
+        t2 = cycles_now();
         physCycles = t1 - t0;
         renderCycles = t2 - t1;
         work = t2 - t0;
@@ -691,6 +699,7 @@ int main(void) {
         REG_BG2Y = 0;
         hud_commit();
         mannequin_commit();
+        coins_commit();
 #ifdef DEMO_BENCH
         bench_record(frame, vblanks, quality, physCycles, renderCycles);
 #endif
@@ -721,7 +730,22 @@ int main(void) {
         (void) goodWindows;
 
         /* HUD for the next flip (text refreshed every 8 frames) */
-        if ((frame & 7) == 0 || !showHud) hud_clear();
+        if ((frame & 7) == 0 || !showHud) {
+            char *p = line;
+            hud_clear();
+            if (gRedCoinTotal || gCoinCount) {
+                *p++ = 'C'; *p++ = 'O'; *p++ = 'I'; *p++ = 'N'; *p++ = 'S'; *p++ = ' ';
+                p = hud_fmt_int(p, gCoinCount, 1);
+                if (gRedCoinTotal) {
+                    *p++ = ' '; *p++ = 'R'; *p++ = 'E'; *p++ = 'D'; *p++ = ' ';
+                    p = hud_fmt_int(p, gRedCoinCount, 1);
+                    *p++ = '/';
+                    p = hud_fmt_int(p, gRedCoinTotal, 1);
+                }
+                *p = 0;
+                hud_text(2, 150, line);
+            }
+        }
         if (showHud && (frame & 7) == 0) {
             char *p = line;
             p = hud_fmt_int(p, (s32) fps, 2);

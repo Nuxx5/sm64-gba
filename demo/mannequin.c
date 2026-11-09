@@ -41,7 +41,7 @@ extern const short gSkelOffset[20][3];
 
 #define NUM_PARTS 20
 #define BALL_TILE 576       /* OBJ tile index of the 32x32 4bpp ball (after the HUD font) */
-#define OAM_FIRST 48        /* OAM slots after the HUD's */
+#define OAM_FIRST 108       /* OAM slots after the HUD's and the coins' (demo/coins.c) */
 #define BALL_R 15           /* ball radius in texture pixels */
 #define FOCAL 200           /* full-res focal length: 120 / tan(31 deg) as in the renderer */
 

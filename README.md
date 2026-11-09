@@ -342,8 +342,14 @@ deliberately; physics was never touched:
   an import, Mario's real low-poly model, flat shaded per triangle; cosmetic
   geo nodes (head turn, torso tilt, punch scaling) and the eyes' blinking are
   not reproduced.
-- **No objects:** no enemies, coins, platforms or doors. Death planes and
-  deaths respawn Mario at the level start.
+- **Objects: coins only, in Bob-omb Battlefield.** Yellow and red coins
+  (single coins, lines and rings) at their original places, read from the
+  level's macro object list in the decomp (`demo/coins.c`), with the game's
+  formation offsets and floor snap. Mario collects them (counter at the
+  bottom left); they don't affect his physics, so the parity check is
+  unchanged. They're plain hardware sprites, not depth tested, and drawn over
+  Mario. No coin boxes, no red coin star, and no enemies, platforms or doors
+  yet. Death planes and deaths respawn Mario at the level start.
 - **Memory:** the surface pools are sized for these four levels (frees ~70
   KB), and `mario_step.c` runs from ROM in the demo (its IWRAM is worth more
   as stack). IWRAM: 27.6 KB used, 4.1 KB for the stack (measured high-water
