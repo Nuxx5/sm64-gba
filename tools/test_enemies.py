@@ -104,7 +104,7 @@ def runtime_check(args, art):
         reports = []
         for frames, option, keys in ((1800, "--keys-game", "demo/keys/goomba_hit.keys"),
                                       (1500, "--keys", "demo/keys/physics_check.keys")):
-            subprocess.run([args.runner, args.rom, "--frames", str(frames), option, keys,
+            subprocess.run([args.runner, args.rom, "--start-game", "--frames", str(frames), option, keys,
                             "--sprite-report", str(report)], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
             reports.append(report.read_text().splitlines())
         observations, hashes, sizes, slots, animations = 0, set(), set(), defaultdict(list), set()

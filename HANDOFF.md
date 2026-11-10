@@ -203,3 +203,33 @@ Still to do:
 | `tools/n64seq.py`, `n64audio.py`, `n64music.py` | music: sequences, sound data, arrangement/render |
 | `gba/demo.ld`, `gba/mgba_runner.c` | demo memory layout, headless runner |
 | `demo/keys/*.keys` | input scripts (goomba_* are in game frames) |
+
+
+## Title and SRAM saves (November 2026)
+
+`demo/title.c` runs before gameplay; Start = New Game, A = Continue when
+saved, Start then A confirms overwrite, B cancels. L+R+Start returns to title.
+`tools/import_title.py` captures 48 original US-ROM Mario-face idle frames
+using Mupen64Plus Rice/HLE (`Dockerfile.title`), quantizes to Mode 4 and emits
+ignored `build/import/title_art.c`. This is prerecorded animation, no live
+Goddard face deformation; no claim of pixel identity at GBA resolution.
+`NOIMPORT=1` uses a text title. Capture is a separate `make import-title`
+step because it needs the optional emulator tools and currently supports US.
+
+`demo/save.c` maintains two versioned CRC32 records at SRAM offsets 4096 and
+4224 (outside benchmark data). New records commit magic last. Saved profile:
+level, lives, visited mask, 96 coin flags per each of four levels and best
+coin counts. Autosave on coin/life/level changes; Continue respawns at entrance.
+`make save-check` tests interrupted writes/corruption; `save-ui-check` boots
+the real ROM repeatedly and exercises title controls and persistent saves.
+Runner `--start-game` bypasses title for existing checks; `--title-keys` uses
+script times relative to title readiness. Save fixtures use bus writes to
+initialize mGBA SRAM autodetection (raw writes silently drop them).
+
+Validation: both sampled/chip demo-check and enemy-check pass (2,020/2,019
+live enemy sprite observations, 137 images). NOIMPORT demo-check passes.
+Host parity: 23/23 scripts, 53,139 frames. Optimized GBA parity: 23/23 ROMs.
+Randomized RAM: 1,230 game frames and 2,880 framebuffer hashes identical.
+SRAM native power-cut checks and nine real-ROM menu/persistence checks pass.
+EWRAM ends at 0x0203DDE0; IWRAM end remains 0x030074B0. The title loop was
+also checked internally in mGBA: successive framebuffers show changing art.

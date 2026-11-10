@@ -180,6 +180,29 @@ checks into the header (with devkitPro's gbafix, fetched at build time) and
 checks the header as the BIOS does. If you have a flash cart, the bench ROM
 below is the most useful thing to run.
 
+**Title and saves:** Start starts a new game. If a checkpoint exists, A
+continues it; Start asks for A to replace it or B to cancel. L+R+Start during
+play returns to the title. SRAM autosaves the current level, remaining lives,
+collected coin flags and best coin totals. Continue respawns at the level
+entrance. Keep the emulator's `.sav` alongside the ROM, and enable 32 KB SRAM
+if your emulator requires an explicit save type. Two CRC-checked records
+preserve the previous checkpoint if a write is interrupted.
+
+The optional original Mario-face title is a prerendered idle loop captured
+from your US ROM, reduced to 240x160 and 256 colors; face stretching is not
+implemented. Build it locally (generated frames/C are ignored):
+
+```
+docker build -f Dockerfile.title -t sm64-gba-title .
+docker run --rm -u "$(id -u):$(id -g)" -v "$PWD:/work" \
+    -v /absolute/path/baserom.us.z64:/rom.z64:ro -e LIBGL_ALWAYS_SOFTWARE=1 \
+    sm64-gba-title make import-title ROM=/rom.z64
+make demo
+make save-check save-ui-check
+```
+
+Without the optional capture, the title uses a simple text screen.
+
 **Controls:** D-pad = stick, A = A (jump), B = B (punch, dive, kick), R = Z
 (crouch, long jump, ground pound), L + D-pad = rotate and zoom the camera,
 Start = next level (Bob-omb Battlefield, Whomp's Fortress, Cool Cool Mountain,

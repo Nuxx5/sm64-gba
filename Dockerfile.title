@@ -1,0 +1,6 @@
+FROM sm64-gba
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    mupen64plus-ui-console mupen64plus-video-rice mupen64plus-rsp-hle \
+    mupen64plus-input-sdl mupen64plus-audio-sdl xvfb xauth \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /work

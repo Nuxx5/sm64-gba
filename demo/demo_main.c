@@ -29,6 +29,8 @@
 #include "actors.h"
 #include "sfx.h"
 #include "music.h"
+#include "save.h"
+#include "title.h"
 #include "objects.h"
 #include "behavior_data.h"
 #ifdef DEMO_IMPORTED
@@ -300,6 +302,44 @@ static s32 sLevel;
 #define START_LIVES 4
 static s32 sLives = START_LIVES;
 static s32 sGameOver;
+#ifndef DEMO_BENCH
+static struct SaveData sProgress;
+static const struct SaveStorage sSaveStorage = {(volatile u8 *) (0x0E000000 + SAVE_RAM_OFFSET), 0, 0};
+static s32 sSavedCoinCount, sSavedLives, sSavedLevel;
+
+static void save_checkpoint(void) {
+    if (gCoinCount == sSavedCoinCount && sLives == sSavedLives && sLevel == sSavedLevel) return;
+    sProgress.level = (u8) sLevel;
+    sProgress.lives = (u8) sLives;
+    sProgress.visited |= (u8) (1 << sLevel);
+    coins_get_taken(sProgress.coins[sLevel]);
+    if (gCoinCount > sProgress.bestCoins[sLevel]) sProgress.bestCoins[sLevel] = (u16) gCoinCount;
+    if (save_commit(&sSaveStorage, &sProgress)) {
+        sSavedCoinCount = gCoinCount;
+        sSavedLives = sLives;
+        sSavedLevel = sLevel;
+        if (sDebug) debug_line("save committed");
+    }
+}
+
+static void title_game(void) {
+    s32 haveSave, choice;
+    music_stop();
+    sfx_silence();
+    mannequin_hide(); coins_hide(); actors_hide(); hud_meter_hide();
+    haveSave = save_load(&sSaveStorage, &sProgress);
+    choice = title_run(haveSave, sDebug ? debug_line : 0);
+    if (choice == 1) {
+        save_new(&sProgress);
+        save_commit(&sSaveStorage, &sProgress);
+        if (sDebug) debug_line("game new");
+    } else if (sDebug) debug_line("game continue");
+    sLevel = sProgress.level;
+    sLives = sProgress.lives;
+    sGameOver = 0;
+    sSavedCoinCount = sSavedLives = sSavedLevel = -1;
+}
+#endif
 
 static void spawn_mario(void) {
     init_mario_from_save_file();
@@ -410,6 +450,9 @@ static void load_level(s32 idx) {
     render_set_palette(&kStyles[idx]);
 #endif
     coins_load(idx);
+#ifndef DEMO_BENCH
+    coins_set_taken(sProgress.coins[idx]);
+#endif
     spawn_mario();
     objects_load(idx);
     actors_load_scenery();
@@ -685,7 +728,14 @@ int main(void) {
     setup_dma_table_list(&gMarioAnimsBuf, (void *) gMarioAnims, sMarioAnimBuffer);
     alloc_surface_pools();
     sLevel = 0;
+#ifndef DEMO_BENCH
+    title_game();
+#endif
     load_level(sLevel);
+#ifndef DEMO_BENCH
+    save_checkpoint();
+    prevKeys = ~REG_KEYINPUT & 0x3FF;
+#endif
 
     REG_DISPCNT = DCNT_MODE4 | DCNT_BG2 | DCNT_OBJ | DCNT_OBJ_1D;
     hud_clear();
@@ -714,9 +764,17 @@ int main(void) {
                 sGameOver = 0;
                 sLives = START_LIVES;
             } else {
+#ifndef DEMO_BENCH
+                if ((keys & (KEY_L | KEY_R)) == (KEY_L | KEY_R)) title_game();
+                else
+#endif
                 sLevel = (sLevel + 1) % gNumHarnessLevels;
             }
             load_level(sLevel);
+#ifndef DEMO_BENCH
+            save_checkpoint();
+            prevKeys = ~REG_KEYINPUT & 0x3FF;
+#endif
             REG_DISPCNT = DCNT_MODE4 | DCNT_BG2 | DCNT_OBJ | DCNT_OBJ_1D;
             hud_clear();
             quality = 0;
@@ -788,6 +846,9 @@ int main(void) {
         coins_commit();
         actors_commit();
         hud_meter_commit();
+#ifndef DEMO_BENCH
+        save_checkpoint();
+#endif
 #ifdef DEMO_BENCH
         bench_record(frame, vblanks, quality, physCycles, renderCycles);
 #endif

@@ -34,7 +34,7 @@ def main():
     ap.add_argument("--expect", action="append", default=[], choices=["hurt", "stomp"])
     args = ap.parse_args()
 
-    run = subprocess.run([args.runner, args.rom, "--frames", str(args.frames),
+    run = subprocess.run([args.runner, args.rom, "--start-game", "--frames", str(args.frames),
                           "--keys-game" if args.game_frames else "--keys", args.keys],
                          capture_output=True, text=True, timeout=1800)
     inputs, demo_pos, health, goombas = [], [], [], []
