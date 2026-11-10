@@ -41,7 +41,7 @@ extern const short gSkelOffset[20][3];
 
 #define NUM_PARTS 20
 #define BALL_TILE 576       /* OBJ tile index of the 32x32 4bpp ball (after the HUD font) */
-#define OAM_FIRST 108       /* OAM slots after the HUD's and the coins' (demo/coins.c) */
+#define OAM_FIRST 93        /* OAM 93..112: between the trees in front of Mario and those behind (demo/actors.c) */
 #define BALL_R 15           /* ball radius in texture pixels */
 #define FOCAL 200           /* full-res focal length: 120 / tan(31 deg) as in the renderer */
 
@@ -301,18 +301,18 @@ void mannequin_init(void) {
             }
         }
     }
-    /* palette banks 1..15: 3 materials x 5 depth levels (nearer = brighter) */
+    /* palette banks 1..12: 3 materials x 4 depth levels (nearer = brighter); 13: trees */
     {
         static const u8 base[3][3] = { { 214, 172, 120 }, { 156, 112, 76 }, { 232, 198, 150 } };
         for (m = 0; m < 3; m++) {
-            for (d = 0; d < 5; d++) {
+            for (d = 0; d < 4; d++) {
                 for (i = 1; i < 16; i++) {
                     s32 c[3], k;
                     for (k = 0; k < 3; k++) {
-                        c[k] = base[m][k] * i / 15 * (100 - d * 7) / 100;
+                        c[k] = base[m][k] * i / 15 * (100 - d * 9) / 100;
                         if (i == 15) c[k] = c[k] + (255 - c[k]) / 4; /* specular-ish top */
                     }
-                    PAL_OBJ[(1 + m * 5 + d) * 16 + i] = RGB15(c[0], c[1], c[2]);
+                    PAL_OBJ[(1 + m * 4 + d) * 16 + i] = RGB15(c[0], c[1], c[2]);
                 }
             }
         }
@@ -384,7 +384,7 @@ FAST_SPRITES void mannequin_update(struct Object *marioObj, const struct RCamera
         l->depth = z;
         l->x = (s16) (120 + (s32) (((s64) (cc[0] * FOCAL)) * rz >> 30));
         l->y = (s16) (80 - (s32) (((s64) (cc[1] * FOCAL)) * rz >> 30));
-        l->bank = (u8) (1 + sh->material * 5);
+        l->bank = (u8) (1 + sh->material * 4);
         {
             s32 sxx = MIN_RADIUS_Q8, sxy = 0, syy = MIN_RADIUS_Q8; /* S + r_min^2 I */
             s32 l11, l21, l22, t2, pa, pc, pd, inv11, inv22;
@@ -440,7 +440,7 @@ FAST_SPRITES void mannequin_update(struct Object *marioObj, const struct RCamera
             const struct Limb *l = &sLimbs[i];
             s32 dl = (l->depth - centerDepth) / (12 * 16) + 2; /* depth shading level */
             s32 x = l->x - 32, y = l->y - 32;                    /* double-size box: 64x64 */
-            dl = dl < 0 ? 0 : dl > 4 ? 4 : dl;
+            dl = dl < 0 ? 0 : dl > 3 ? 3 : dl;
             if (x < -64 || x > 240 || y < -64 || y > 160) {
                 sOam[i][0] = 0x0200;
                 continue;

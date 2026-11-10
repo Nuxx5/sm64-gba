@@ -1,9 +1,8 @@
-# Bob-omb Battlefield: run at the first Goomba and jump onto it (Mario stomps
-# it and bounces). The jump window is about 4 game frames wide, so if the
-# demo's frame rate changes, this route can miss: demo-check then fails
-# ("expected 'stomp'") and the jump frame needs re-tuning (sweep the A line).
-140 170 >
-170 300 ^
-300 302 ^>
-302 600 ^
-436 442 A
+# Bob-omb Battlefield: the hit route, then a jump onto the Goomba after the
+# knockback: Mario stomps it (it is removed). In GAME frames (--keys-game);
+# the jump works anywhere in 168..176.
+0 7 >
+7 60 ^
+60 61 ^>
+61 300 ^
+172 175 A

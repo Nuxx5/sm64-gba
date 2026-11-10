@@ -17,6 +17,8 @@
  *   --frames N        run N GBA frames (60 Hz) then exit (the demo never ends)
  *   --keys FILE       button script: lines "first last KEYS", frames inclusive,
  *                     KEYS from A B L R S(start) E(select) < > ^ v
+ *   --keys-game FILE  the same, but frames are the demo's game frames (from its
+ *                     debug stats), not GBA frames
  *   --capture DIR K   write every K-th frame as DIR/NNNNNN.ppm
  *   --video-hash FILE one line per frame: FNV-1a hash of the picture
  *   --audio FILE      record the sound output as a 32 kHz stereo WAV file
@@ -96,6 +98,12 @@ static void prof_dump(const char *path) {
     fclose(f);
 }
 
+/* --keys-game: the demo's game frame about to run (its debug stats line,
+ * "f <frame hex> ...", ends each game frame), so key scripts can be timed
+ * in game frames, which don't move when the demo's frame rate changes */
+static int sKeysByGameFrame;
+static long sGameFrame;
+
 static void on_log(struct mLogger *logger, int category, enum mLogLevel level, const char *format,
                    va_list args) {
     char buf[512];
@@ -107,6 +115,9 @@ static void on_log(struct mLogger *logger, int category, enum mLogLevel level, c
     }
     vsnprintf(buf, sizeof(buf), format, args);
     if (level == mLOG_INFO) {
+        if (buf[0] == 'f' && buf[1] == ' ') {
+            sGameFrame = strtol(buf + 2, NULL, 16) + 1;
+        }
         fputs(buf, stdout);
         fputc('\n', stdout);
     } else if (strcmp(buf, "__done__") == 0) {
@@ -265,7 +276,7 @@ int main(int argc, char **argv) {
     int i;
 
     if (argc < 2) {
-        fprintf(stderr, "usage: %s rom.gba [max_gba_frames] [--frames N] [--keys F] [--capture DIR K]\n                        [--video-hash F] [--dirty SEED] [--sram F]\n", argv[0]);
+        fprintf(stderr, "usage: %s rom.gba [max_gba_frames] [--frames N] [--keys F | --keys-game F] [--capture DIR K]\n                        [--video-hash F] [--dirty SEED] [--sram F]\n", argv[0]);
         return 2;
     }
     for (i = 2; i < argc; i++) {
@@ -282,6 +293,9 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "mgba_runner: cannot write %s\n", argv[i]);
                 return 2;
             }
+        } else if (strcmp(argv[i], "--keys-game") == 0 && i + 1 < argc) {
+            load_keys(argv[++i]);
+            sKeysByGameFrame = 1;
         } else if (strcmp(argv[i], "--audio") == 0 && i + 1 < argc) {
             audioFile = fopen(argv[++i], "wb");
             if (audioFile == NULL) {
@@ -348,7 +362,7 @@ int main(int argc, char **argv) {
 
     while (!sDone && frames < maxFrames) {
         if (sNumKeyRanges > 0) {
-            core->setKeys(core, keys_for_frame(frames));
+            core->setKeys(core, keys_for_frame(sKeysByGameFrame ? sGameFrame : frames));
         }
         core->runFrame(core);
         sFrameCounter++;

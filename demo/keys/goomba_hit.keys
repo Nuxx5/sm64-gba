@@ -1,6 +1,8 @@
 # Bob-omb Battlefield: turn, run into the first Goomba (Mario loses a health
 # wedge and is knocked back): the object interaction path of the physics check.
-140 170 >
-170 300 ^
-300 302 ^>
-302 600 ^
+# Timed in GAME frames (mgba_runner --keys-game), so the route doesn't move
+# when the demo's frame rate changes. The nudge works anywhere in 40..100.
+0 7 >
+7 60 ^
+60 61 ^>
+61 300 ^

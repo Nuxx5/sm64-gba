@@ -365,7 +365,9 @@ deliberately; physics was never touched:
   physics check covers it: the reference harness runs the same objects
   (`build/host/harness_obj`), Mario stays bit-identical on every frame, and
   `make demo-check` adds a run into a Goomba and a stomp, and fails if
-  Mario doesn't actually get hurt or the Goomba isn't removed (replayed without
+  Mario doesn't actually get hurt or the Goomba isn't removed (both key scripts
+  are timed in game frames, `mgba_runner --keys-game`, so the routes don't
+  drift when the demo's frame rate changes) (replayed without
   objects, the first one diverges at the hit, as it should). Drawn as sprite
   stand-ins (`demo/actors.c`), not depth tested. Not reproduced: particles, and animation steps for objects out of view (the game only
   advances animations it draws; here, all of them). Cost: Mario plus objects
@@ -373,6 +375,12 @@ deliberately; physics was never touched:
   worst), so BoB renders one or two quality steps lower. No platforms, doors,
   King Bob-omb or Chain Chomp yet. Death planes and deaths respawn Mario at
   the level start.
+- **Scenery: BoB's trees, drawn only.** The 17 trees from the level's
+  special object list, at their places, as sprites (`demo/actors.c`): no
+  behavior runs, so Mario can't climb them, and they cost no CPU beyond
+  placing the sprites. Trees nearer the camera than Mario are drawn over him,
+  the others behind him. Signposts and wooden posts are solid in the game,
+  so they wait until they can be solid here too.
 - **Sound effects:** chiptune effects on the GBA's Game Boy sound channels
   (`demo/sfx.c`), triggered by the game's own sound calls with SM64's sound
   IDs: jumps, landings, footsteps, bonks, getting hurt, stomps, Goomba

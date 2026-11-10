@@ -6,7 +6,7 @@
 #include "hud.h"
 
 #define HUD_TILE_BASE 512 /* first OBJ tile usable in bitmap modes */
-#define HUD_MAX_SPRITES 48
+#define HUD_MAX_SPRITES 36 /* OAM 0..35; the rest: demo/actors.c, coins.c, mannequin.c */
 
 static const char kGlyphChars[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ%/:.- ";
 /* 5 rows of 3 pixels per glyph, '#' = set */

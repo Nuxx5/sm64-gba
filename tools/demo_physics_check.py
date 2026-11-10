@@ -29,10 +29,13 @@ def main():
     ap.add_argument("--keys", required=True)
     ap.add_argument("--frames", type=int, default=1800)
     ap.add_argument("--level", default="bob")
+    ap.add_argument("--game-frames", action="store_true",
+                    help="the key script is timed in game frames (mgba_runner --keys-game)")
     ap.add_argument("--expect", action="append", default=[], choices=["hurt", "stomp"])
     args = ap.parse_args()
 
-    run = subprocess.run([args.runner, args.rom, "--frames", str(args.frames), "--keys", args.keys],
+    run = subprocess.run([args.runner, args.rom, "--frames", str(args.frames),
+                          "--keys-game" if args.game_frames else "--keys", args.keys],
                          capture_output=True, text=True, timeout=1800)
     inputs, demo_pos, health, goombas = [], [], [], []
     for line in run.stdout.splitlines():

@@ -4,11 +4,18 @@
  * sprite, sized by distance and by the object's own scale. The game's
  * models are textured 3D meshes; these are drawn stand-ins, 16x16 designs
  * pre-scaled like the coins (demo/coins.c), and not depth tested.
+ *
+ * Scenery: the level's trees (its special objects, spawned by the game when
+ * the terrain loads) are drawn the same way, only drawn: no behavior runs,
+ * so they can't be climbed. Those nearer the camera than Mario go in OAM
+ * slots before the mannequin's (drawn over him), the others after.
  */
 #include <PR/ultratypes.h>
 #include "sm64.h"
 #include "types.h"
 #include "model_ids.h"
+#include "behavior_data.h"
+#include "game/level_update.h"
 #include "game/object_list_processor.h"
 #include "gba.h"
 #include "render.h"
@@ -17,7 +24,7 @@
 extern const s16 gSinQ14[4096];
 extern u8 gModelTags[256]; /* src/obj/obj_stubs.inc.c: a model's stand-in graph node */
 
-#define OAM_FIRST 48        /* after the HUD, before the coins (60..107): drawn over them */
+#define OAM_FIRST 36        /* after the HUD, before the coins (48..87): drawn over them */
 #define OAM_COUNT 12
 #define TILE_FIRST 768      /* after the coins' tiles (600..767) */
 #define NUM_SIZES 12
@@ -72,6 +79,79 @@ static const s16 kWorldSize[NUM_KINDS] = { 110, 110, 160 }; /* sprite height at 
 static const s16 kCenterY[NUM_KINDS] = { 55, 55, 0 };       /* above the object's origin */
 static u16 sTile[NUM_KINDS][NUM_ART];
 static u16 sOam[OAM_COUNT][3];
+
+/* ---- trees ---- */
+#define MAX_TREES 32
+#define TREE_TILE 832       /* after the enemies' (768..831) */
+#define TREE_NEAR_FIRST 88  /* 88..92: in front of Mario (before the mannequin's 93..112) */
+#define TREE_NEAR_COUNT 5
+#define TREE_FAR_FIRST 113  /* 113..127: behind him */
+#define TREE_FAR_COUNT 15
+#define TREE_BANK 13        /* palette bank (the mannequin's are 1..12) */
+#define TREE_HEIGHT 600     /* world units (its pole hitbox is 500 tall) */
+#define NUM_TREE_SIZES 8
+static const u8 kTreeSizes[NUM_TREE_SIZES] = { 6, 8, 12, 16, 24, 32, 48, 64 };
+static u16 sTreeTile[NUM_TREE_SIZES];
+static s16 sTrees[MAX_TREES][3];
+static s32 sNumTrees;
+static u16 sTreeOam[TREE_NEAR_COUNT + TREE_FAR_COUNT][3];
+
+/* 64x64 design: a round crown, lit from the upper left, on a trunk.
+ * Colors: 1..3 greens (dark to light), 4..5 trunk. */
+static s32 tree_pixel(s32 u, s32 v) {
+    s32 dx = u - 32, dy = v - 25, dd = dx * dx * 100 / (27 * 27) + dy * dy * 100 / (24 * 24);
+    if (dd <= 100) {
+        s32 lit = -dx - dy; /* toward the upper left */
+        if (dd > 82) return 1;
+        return lit > 14 ? 3 : lit > -10 ? 2 : 1;
+    }
+    if (u >= 28 && u < 37 && v >= 44 && v < 63) return u < 31 ? 4 : 5;
+    return 0;
+}
+
+static void trees_init(void) {
+    volatile u16 *tiles = OBJ_VRAM_BITMAP;
+    s32 k, x, y, i, tile = TREE_TILE;
+    for (k = 0; k < NUM_TREE_SIZES; k++) {
+        s32 d = kTreeSizes[k], box = d <= 8 ? 8 : d <= 16 ? 16 : d <= 32 ? 32 : 64;
+        s32 w = box / 8, off = (box - d) / 2;
+        sTreeTile[k] = (u16) tile;
+        for (y = 0; y < box; y++) {
+            for (x = 0; x < box; x += 4) {
+                u16 v = 0;
+                for (i = 0; i < 4; i++) {
+                    s32 px = x + i - off, py = y - off, c = 0;
+                    if (px >= 0 && px < d && py >= 0 && py < d) {
+                        c = tree_pixel((2 * px + 1) * 64 / (2 * d), (2 * py + 1) * 64 / (2 * d));
+                    }
+                    v |= (u16) (c << (i * 4));
+                }
+                tiles[(tile - 512 + (y >> 3) * w + (x >> 3)) * 16 + (y & 7) * 2 + ((x & 4) >> 2)] = v;
+            }
+        }
+        tile += w * w;
+    }
+    PAL_OBJ[TREE_BANK * 16 + 1] = RGB15(24, 96, 32);
+    PAL_OBJ[TREE_BANK * 16 + 2] = RGB15(40, 150, 48);
+    PAL_OBJ[TREE_BANK * 16 + 3] = RGB15(110, 200, 80);
+    PAL_OBJ[TREE_BANK * 16 + 4] = RGB15(130, 90, 50);
+    PAL_OBJ[TREE_BANK * 16 + 5] = RGB15(86, 56, 32);
+}
+
+/* After a level loads: the trees the terrain spawned (they don't run). */
+void actors_load_scenery(void) {
+    s32 i;
+    sNumTrees = 0;
+    for (i = 0; i < OBJECT_POOL_CAPACITY && sNumTrees < MAX_TREES; i++) {
+        struct Object *o = &gObjectPool[i];
+        if (o->activeFlags != ACTIVE_FLAG_DEACTIVATED && o->behavior == segmented_to_virtual(bhvTree)) {
+            sTrees[sNumTrees][0] = (s16) o->oPosX;
+            sTrees[sNumTrees][1] = (s16) o->oPosY;
+            sTrees[sNumTrees][2] = (s16) o->oPosZ;
+            sNumTrees++;
+        }
+    }
+}
 
 static s32 qsin(s32 a) { return gSinQ14[(a & 0xFFFF) >> 4]; }
 static s32 qcos(s32 a) { return gSinQ14[((a + 0x4000) & 0xFFFF) >> 4]; }
@@ -128,12 +208,61 @@ void actors_init(void) {
     PAL_OBJ[13] = RGB15(36, 36, 44);    /* black */
     PAL_OBJ[14] = RGB15(248, 248, 248); /* white */
     PAL_OBJ[15] = RGB15(248, 140, 24);  /* orange */
+    trees_init();
     actors_hide();
 }
 
 void actors_hide(void) {
     s32 i;
     for (i = 0; i < OAM_COUNT; i++) sOam[i][0] = 0x0200;
+    for (i = 0; i < TREE_NEAR_COUNT + TREE_FAR_COUNT; i++) sTreeOam[i][0] = 0x0200;
+}
+
+/* camera space depth and screen position of a world point; 0 if not drawable */
+static s32 project(const struct RCamera *cam, s32 farDist, s32 x, s32 y, s32 z, s32 *sx, s32 *sy, s32 *cz) {
+    s32 sinY = qsin(cam->yaw), cosY = qcos(cam->yaw), sinP = qsin(cam->pitch), cosP = qcos(cam->pitch);
+    s32 vx = x - cam->x, vy = y - cam->y, vz = z - cam->z, zf, cx, cy;
+    if (vx > farDist || vx < -farDist || vz > farDist || vz < -farDist) return 0;
+    zf = -((vx * sinY + vz * cosY) >> 14);
+    cx = (vx * cosY - vz * sinY) >> 14;
+    *cz = (zf * cosP - vy * sinP) >> 14;
+    cy = (zf * sinP + vy * cosP) >> 14;
+    if (*cz < 64 || *cz > farDist) return 0;
+    *sx = 120 + cx * FOCAL / *cz;
+    *sy = 80 - cy * FOCAL / *cz;
+    return 1;
+}
+
+static void trees_draw(const struct RCamera *cam, s32 farDist) {
+    s32 i, k, nNear = 0, nFar = 0, marioZ = 0x7FFFFFFF, mx, my;
+    if (gMarioState != NULL) {
+        project(cam, 0x7FFF, (s32) gMarioState->pos[0], (s32) gMarioState->pos[1] + 80,
+                (s32) gMarioState->pos[2], &mx, &my, &marioZ);
+    }
+    for (i = 0; i < sNumTrees; i++) {
+        s32 sx, sy, cz, diam, box, slot;
+        if (!project(cam, farDist, sTrees[i][0], sTrees[i][1] + TREE_HEIGHT / 2, sTrees[i][2], &sx, &sy, &cz)) {
+            continue;
+        }
+        diam = TREE_HEIGHT * FOCAL / cz;
+        if (diam < 4 || sx < -64 || sx > 304 || sy < -64 || sy > 224) continue;
+        for (k = 0; k < NUM_TREE_SIZES - 1 && kTreeSizes[k + 1] <= diam; k++) {}
+        if (cz < marioZ) {
+            if (nNear >= TREE_NEAR_COUNT) continue;
+            slot = nNear++;
+        } else {
+            if (nFar >= TREE_FAR_COUNT) continue;
+            slot = TREE_NEAR_COUNT + nFar++;
+        }
+        box = kTreeSizes[k] <= 8 ? 8 : kTreeSizes[k] <= 16 ? 16 : kTreeSizes[k] <= 32 ? 32 : 64;
+        sx -= box / 2;
+        sy -= box / 2;
+        sTreeOam[slot][0] = (u16) (sy & 0xFF);
+        sTreeOam[slot][1] = (u16) ((sx & 0x1FF) | ((box == 8 ? 0 : box == 16 ? 1 : box == 32 ? 2 : 3) << 14));
+        sTreeOam[slot][2] = (u16) (sTreeTile[k] | (TREE_BANK << 12));
+    }
+    for (; nNear < TREE_NEAR_COUNT; nNear++) sTreeOam[nNear][0] = 0x0200;
+    for (; nFar < TREE_FAR_COUNT; nFar++) sTreeOam[TREE_NEAR_COUNT + nFar][0] = 0x0200;
 }
 
 void actors_draw(const struct RCamera *cam, s32 farDist) {
@@ -182,6 +311,7 @@ void actors_draw(const struct RCamera *cam, s32 farDist) {
         n++;
     }
     for (; n < OAM_COUNT; n++) sOam[n][0] = 0x0200;
+    trees_draw(cam, farDist);
 }
 
 void actors_commit(void) {
@@ -190,6 +320,12 @@ void actors_commit(void) {
         OAM[(OAM_FIRST + i) * 4 + 0] = sOam[i][0];
         OAM[(OAM_FIRST + i) * 4 + 1] = sOam[i][1];
         OAM[(OAM_FIRST + i) * 4 + 2] = sOam[i][2];
+    }
+    for (i = 0; i < TREE_NEAR_COUNT + TREE_FAR_COUNT; i++) {
+        s32 at = i < TREE_NEAR_COUNT ? TREE_NEAR_FIRST + i : TREE_FAR_FIRST + i - TREE_NEAR_COUNT;
+        OAM[at * 4 + 0] = sTreeOam[i][0];
+        OAM[at * 4 + 1] = sTreeOam[i][1];
+        OAM[at * 4 + 2] = sTreeOam[i][2];
     }
     for (i = NUM_ART; i < NUM_SIZES; i++) {
         u16 p = (u16) (16 * 256 / kSizes[i]);

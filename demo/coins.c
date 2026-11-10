@@ -33,12 +33,12 @@ extern const s16 gSinQ14[4096];
 static const MacroObject *const kLevelMacros[] = { bob_seg7_macro_objs, NULL, NULL, NULL };
 
 #define MAX_COINS 96
-/* OAM slots after the HUD's (0..47) and the enemies' (48..59), before the mannequin's (108..127): the
+/* OAM slots after the HUD's (0..35) and the enemies' (36..47), before the mannequin's (108..127): the
  * mannequin's big affine sprites use up the scanline's sprite time, and the
  * sprites first in OAM get it first. These are plain (not affine) sprites,
  * pre-scaled, which cost a fraction of an affine sprite's time. */
-#define OAM_FIRST 60
-#define OAM_COUNT 48       /* after the enemies' 48..59 (demo/actors.c) */
+#define OAM_FIRST 48
+#define OAM_COUNT 40       /* after the enemies' 36..47, before the trees (demo/actors.c) */
 #define COIN_TILE 600       /* pre-scaled sprites, 4bpp, 1D mapping: [color][frame][art size] */
 #define NUM_SIZES 12
 #define NUM_ART 9           /* sizes drawn as is; the rest are the 16 px art scaled by the GBA */

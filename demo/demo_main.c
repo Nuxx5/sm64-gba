@@ -381,6 +381,7 @@ static void load_level(s32 idx) {
     coins_load(idx);
     spawn_mario();
     objects_load(idx);
+    actors_load_scenery();
 #ifdef DEMO_BENCH
     sram_put(BENCH_LOADS_OFS + 2 * idx, gVBlankCount - v0, 2);
 #endif
