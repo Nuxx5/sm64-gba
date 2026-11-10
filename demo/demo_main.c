@@ -320,6 +320,8 @@ static void show_loading(s32 idx) {
     coins_commit();
     actors_hide();
     actors_commit();
+    hud_meter_hide();
+    hud_meter_commit();
 }
 
 static void load_level(s32 idx) {
@@ -472,6 +474,8 @@ static void show_game_over(void) {
     coins_commit();
     actors_hide();
     actors_commit();
+    hud_meter_hide();
+    hud_meter_commit();
     t0 = gVBlankCount;
     while (gVBlankCount - t0 < 180) {}
 }
@@ -643,6 +647,7 @@ int main(void) {
     coins_init();
     actors_init();
     sfx_init();
+    hud_meter_init();
 
     /* VBlank interrupt for frame pacing */
     REG_IME = 0;
@@ -704,6 +709,7 @@ int main(void) {
         check_respawn();
         coins_update(gMarioState->pos);
         sfx_frame();
+        hud_meter_update(gMarioState->health);
         t1 = cycles_now();
         camera_update(gMarioState, keys, &cam);
         player_from_mario(&player);
@@ -757,6 +763,7 @@ int main(void) {
         mannequin_commit();
         coins_commit();
         actors_commit();
+        hud_meter_commit();
 #ifdef DEMO_BENCH
         bench_record(frame, vblanks, quality, physCycles, renderCycles);
 #endif

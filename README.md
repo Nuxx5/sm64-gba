@@ -378,8 +378,10 @@ deliberately; physics was never touched:
 - **Lives and game over:** as in the game, Mario starts with 4 lives and
   loses one per death (health run out by enemies, death planes, falling off);
   dying with none left shows GAME OVER and restarts the level with 4. Lives
-  are shown at the bottom left. Health itself is the game's (8 wedges, coins
-  heal), not drawn.
+  are shown at the bottom left. Health is the game's (8 wedges, coins heal),
+  shown like its power meter: a round meter at the top, one wedge per unit
+  of health, blue, green, yellow then red as it runs out, visible while
+  Mario isn't at full health.
 - **Scenery: BoB's trees, drawn only.** The 17 trees from the level's
   special object list, at their places, as sprites (`demo/actors.c`): no
   behavior runs, so Mario can't climb them, and they cost no CPU beyond
