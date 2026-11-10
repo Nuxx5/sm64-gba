@@ -161,6 +161,24 @@ void coins_load(s32 level) {
     gRedCoinTotal = sNumRed;
 }
 
+void coins_get_taken(u8 bits[12]) {
+    s32 i;
+    for (i = 0; i < 12; i++) bits[i] = 0;
+    for (i = 0; i < sNumCoins; i++) if (sCoins[i].taken) bits[i >> 3] |= (u8) (1 << (i & 7));
+}
+
+void coins_set_taken(const u8 bits[12]) {
+    s32 i;
+    gCoinCount = gRedCoinCount = 0;
+    for (i = 0; i < sNumCoins; i++) {
+        sCoins[i].taken = (bits[i >> 3] >> (i & 7)) & 1;
+        if (sCoins[i].taken) {
+            gCoinCount += sCoins[i].red ? 2 : 1;
+            if (sCoins[i].red) gRedCoinCount++;
+        }
+    }
+}
+
 /* Collection: the coin hitboxes (radius 100, height 64) against Mario's
  * (radius 37, height 160), as in the game's obj_collide_with(). */
 __attribute__((section(".iwram"), target("arm"), noinline)) /* every frame, every coin */

@@ -19,6 +19,10 @@
  *                     KEYS from A B L R S(start) E(select) < > ^ v
  *   --keys-game FILE  the same, but frames are the demo's game frames (from its
  *                     debug stats), not GBA frames
+ *   --start-game     press Start once the title is ready (gameplay checks)
+ *   --title-keys     script times relative to title readiness (UI checks)
+ *   --save-in FILE   restore a 32 KB SRAM file before boot
+ *   --save-out FILE  write SRAM after the last emulated frame
  *   --capture DIR K   write every K-th frame as DIR/NNNNNN.ppm
  *   --video-hash FILE one line per frame: FNV-1a hash of the picture
  *   --sprite-report F text OAM/VRAM hashes of imported enemy sprites
@@ -104,6 +108,7 @@ static void prof_dump(const char *path) {
  * in game frames, which don't move when the demo's frame rate changes */
 static int sKeysByGameFrame;
 static long sGameFrame;
+static int sTitleReady;
 
 static void on_log(struct mLogger *logger, int category, enum mLogLevel level, const char *format,
                    va_list args) {
@@ -116,6 +121,7 @@ static void on_log(struct mLogger *logger, int category, enum mLogLevel level, c
     }
     vsnprintf(buf, sizeof(buf), format, args);
     if (level == mLOG_INFO) {
+        if (strcmp(buf, "title ready") == 0) sTitleReady = 1;
         if (buf[0] == 'f' && buf[1] == ' ') {
             sGameFrame = strtol(buf + 2, NULL, 16) + 1;
         }
@@ -302,6 +308,9 @@ int main(int argc, char **argv) {
     FILE *hashFile = NULL;
     FILE *audioFile = NULL;
     FILE *spriteFile = NULL;
+    const char *saveIn = NULL, *saveOut = NULL;
+    int autoStart = 0, startPhase = 0, titleKeys = 0;
+    long keyOrigin = 0;
     long audioSamples = 0;
     long dirtySeed = -1;
     int i;
@@ -327,6 +336,14 @@ int main(int argc, char **argv) {
         } else if (strcmp(argv[i], "--keys-game") == 0 && i + 1 < argc) {
             load_keys(argv[++i]);
             sKeysByGameFrame = 1;
+        } else if (strcmp(argv[i], "--start-game") == 0) {
+            autoStart = 1;
+        } else if (strcmp(argv[i], "--title-keys") == 0) {
+            titleKeys = 1;
+        } else if (strcmp(argv[i], "--save-in") == 0 && i + 1 < argc) {
+            saveIn = argv[++i];
+        } else if (strcmp(argv[i], "--save-out") == 0 && i + 1 < argc) {
+            saveOut = argv[++i];
         } else if (strcmp(argv[i], "--sprite-report") == 0 && i + 1 < argc) {
             spriteFile = fopen(argv[++i], "w");
             if (spriteFile == NULL) {
@@ -371,6 +388,18 @@ int main(int argc, char **argv) {
         return 1;
     }
     core->reset(core);
+    if (saveIn != NULL) {
+        unsigned j;
+        unsigned char ram[32768];
+        FILE *save = fopen(saveIn, "rb");
+        if (save == NULL || fread(ram, 1, sizeof(ram), save) != sizeof(ram) || fgetc(save) != EOF) {
+            fprintf(stderr, "mgba_runner: --save-in needs a 32768-byte SRAM file\n");
+            return 2;
+        }
+        fclose(save);
+        /* Bus writes initialize mGBA's autodetected SRAM; raw writes don't. */
+        for (j = 0; j < sizeof(ram); j++) core->busWrite8(core, 0x0E000000 + j, ram[j]);
+    }
     if (audioFile != NULL) {
         core->setAudioBufferSize(core, 4096);
         blip_set_rates(core->getAudioChannel(core, 0), core->frequency(core), 32768);
@@ -398,8 +427,19 @@ int main(int argc, char **argv) {
     }
 
     while (!sDone && frames < maxFrames) {
-        if (sNumKeyRanges > 0) {
-            core->setKeys(core, keys_for_frame(sKeysByGameFrame ? sGameFrame : frames));
+        {
+            if (titleKeys && sTitleReady && keyOrigin == 0) keyOrigin = frames;
+            unsigned keys = sNumKeyRanges > 0 ? keys_for_frame(sKeysByGameFrame ? sGameFrame : frames - keyOrigin) : 0;
+            if (titleKeys && !sTitleReady) keys = 0;
+            if (autoStart && startPhase < 5) {
+                keys = 0;
+                if (sTitleReady) {
+                    if (startPhase == 0) keyOrigin = frames;
+                    keys = startPhase < 4 ? 8 : 0; /* Start long enough for a 30Hz title */
+                    startPhase++;
+                }
+            }
+            core->setKeys(core, keys);
         }
         core->runFrame(core);
         sFrameCounter++;
@@ -429,9 +469,10 @@ int main(int argc, char **argv) {
         fclose(hashFile);
     }
     if (spriteFile != NULL) fclose(spriteFile);
+    if (saveOut != NULL) bench_done(core, saveOut); /* dump bytes, not bench completion state */
     if (sramPath != NULL) {
         sDone = bench_done(core, sramPath);
-    } else if (captureDir != NULL || sNumKeyRanges > 0 || hashFile != NULL || audioFile != NULL || spriteFile != NULL) {
+    } else if (captureDir != NULL || sNumKeyRanges > 0 || hashFile != NULL || audioFile != NULL || spriteFile != NULL || saveOut != NULL || autoStart) {
         sDone = 1; /* demo runs end on the frame limit */
     }
 

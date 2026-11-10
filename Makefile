@@ -428,7 +428,7 @@ DEMO_CORE := $(filter-out build/armopt/harness_opt.o build/arm/stubs.o build/arm
              build/arm/mario_step.o
 DEMO_OBJS := build/demo/demo_main.o build/demo/render_build.o build/demo/render_iw.o \
              build/demo/hud.o build/demo/irq.o build/demo/render_tables.o build/demo/stubs.o \
-             build/demo/mannequin.o build/demo/skeleton.o build/demo/coins.o build/demo/actors.o build/demo/sfx.o build/demo/sqrtf_exact.o build/demo/music.o
+             build/demo/mannequin.o build/demo/skeleton.o build/demo/coins.o build/demo/actors.o build/demo/sfx.o build/demo/sqrtf_exact.o build/demo/music.o build/demo/title.o build/demo/save.o
 DEMO_CFLAGS := -O2 -w -fno-strict-aliasing -Idemo
 
 # Imported assets (make import ROM=...): build/import/import_data.c, made from
@@ -439,8 +439,10 @@ IMPORT_C := $(if $(NOIMPORT),,$(wildcard build/import/import_data.c))
 SPRITE_ART_C := $(if $(NOIMPORT),,$(wildcard build/import/sprite_art.c))
 SPRITE_ART_DEF := $(if $(SPRITE_ART_C),-DDEMO_SPRITE_ART,)
 ENEMY_ART_C := $(if $(IMPORT_C),$(wildcard build/import/enemy_art.c),)
+TITLE_ART_C := $(if $(IMPORT_C),$(wildcard build/import/title_art.c),)
+TITLE_ART_DEF := $(if $(TITLE_ART_C),-DDEMO_TITLE_ART,)
 ENEMY_ART_DEF := $(if $(ENEMY_ART_C),-DDEMO_ENEMY_ART,)
-DEMO_MODE := $(if $(IMPORT_C),imported,plain)$(if $(SPRITE_ART_C),-art,)$(if $(ENEMY_ART_C),-enemies,)$(if $(wildcard build/import/music_data.c),-music$(if $(filter chip,$(MUSIC)),-chip,),)
+DEMO_MODE := $(if $(IMPORT_C),imported,plain)$(if $(SPRITE_ART_C),-art,)$(if $(ENEMY_ART_C),-enemies,)$(if $(TITLE_ART_C),-title,)$(if $(wildcard build/import/music_data.c),-music$(if $(filter chip,$(MUSIC)),-chip,),)
 DEMO_DEFS := $(if $(IMPORT_C),-DDEMO_IMPORTED,)
 DEMO_MODE_FILE := build/demo/mode.$(DEMO_MODE)
 $(shell mkdir -p build/demo; [ -f $(DEMO_MODE_FILE) ] || { rm -f build/demo/mode.*; touch $(DEMO_MODE_FILE); })
@@ -465,7 +467,7 @@ build/demo/render_tables.c: tools/gen_render_tables.py | build/demo
 build/demo/render_tables.o: build/demo/render_tables.c
 	$(ARM_CC) $(ARM_ARCH) -O2 -c $< -o $@
 
-build/demo/demo_main.o: demo/demo_main.c demo/sfx.h demo/music.h demo/coins.h demo/actors.h src/obj/objects.h $(OBJ_GEN) demo/render.h demo/hud.h demo/mannequin.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) $(ANIM_SRC) | build/demo
+build/demo/demo_main.o: demo/demo_main.c demo/sfx.h demo/music.h demo/title.h demo/save.h demo/coins.h demo/actors.h src/obj/objects.h $(OBJ_GEN) demo/render.h demo/hud.h demo/mannequin.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) $(ANIM_SRC) | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) $(DEMO_DEFS) -Idemo -c $< -o $@
 
 build/demo/render_build.o: demo/render_build.c demo/render.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) | build/demo
@@ -584,6 +586,28 @@ build/demo/enemy_art.o: build/import/enemy_art.c demo/enemy_art.h | build/demo
 build/demo/sprite_art.o: build/import/sprite_art.c | build/demo
 	$(ARM_CC) $(ARM_ARCH) -O2 -c $< -o $@
 
+ifneq ($(TITLE_ART_C),)
+DEMO_OBJS += build/demo/title_art.o
+build/demo/title_art.o: $(TITLE_ART_C) | build/demo
+	$(ARM_CC) $(ARM_ARCH) $(DEMO_CFLAGS) -c $< -o $@
+endif
+
+build/demo/title.o: demo/title.c demo/title.h demo/gba.h demo/hud.h $(DEMO_MODE_FILE) | build/demo
+	$(ARM_CC) $(ARM_ARCH) $(DEMO_CFLAGS) $(TITLE_ART_DEF) -c $< -o $@
+
+build/demo/save.o: demo/save.c demo/save.h | build/demo
+	$(ARM_CC) $(ARM_ARCH) $(DEMO_CFLAGS) -c $< -o $@
+
+.PHONY: save-check
+build/host/save_check: src/test/save_check.c demo/save.c demo/save.h | build/host
+	$(HOST_CC) -std=c99 -O2 -Wall -Wextra -Idemo src/test/save_check.c demo/save.c -o $@
+save-check: build/host/save_check
+	./build/host/save_check
+
+.PHONY: save-ui-check
+save-ui-check: build/demo/sm64demo.gba build/mgba_runner
+	$(PYTHON) tools/test_saves.py
+
 build/demo/hud.o: demo/hud.c demo/hud.h demo/gba.h $(DEMO_MODE_FILE) | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(DEMO_CFLAGS) $(SPRITE_ART_DEF) -c $< -o $@
 
@@ -643,7 +667,7 @@ demo-check: build/demo/sm64demo.gba build/mgba_runner build/host/harness_obj
 	    --harness build/host/harness_obj --keys demo/keys/goomba_hit.keys --game-frames --frames 950 --expect hurt
 	$(PYTHON) tools/demo_physics_check.py --runner build/mgba_runner --rom build/demo/sm64demo.gba \
 	    --harness build/host/harness_obj --keys demo/keys/goomba_stomp.keys --game-frames --frames 950 --expect stomp
-	./build/mgba_runner build/demo/sm64demo.gba --frames 2880 --keys demo/keys/tour.keys > build/demo/tour.log 2>/dev/null
+	./build/mgba_runner build/demo/sm64demo.gba --start-game --frames 2880 --keys demo/keys/tour.keys > build/demo/tour.log 2>/dev/null
 	$(PYTHON) tools/demo_stats.py build/demo/tour.log
 
 # ---------- bench ----------
@@ -691,7 +715,7 @@ bench-report: $(BENCH_RUN) build/mgba_runner build/host/harness
 # holds. The tour with work RAM, VRAM, palette and sprite memory filled with
 # random bytes must play exactly as with zeroed memory: same stats lines
 # every frame, same pictures.
-DIRTY_TOUR := ./build/mgba_runner build/demo/sm64demo.gba --frames 2880 --keys demo/keys/tour.keys
+DIRTY_TOUR := ./build/mgba_runner build/demo/sm64demo.gba --start-game --frames 2880 --keys demo/keys/tour.keys
 
 dirty-check: build/demo/sm64demo.gba build/mgba_runner
 	$(DIRTY_TOUR) --video-hash build/demo/zeroed.hash > build/demo/zeroed.log 2>/dev/null
@@ -732,7 +756,7 @@ render-check: build/host/render_check
 # Preview video of the tour (needs ffmpeg).
 demo-video: build/demo/sm64demo.gba build/mgba_runner
 	rm -rf build/demo/frames && mkdir -p build/demo/frames
-	./build/mgba_runner build/demo/sm64demo.gba --frames 2880 --keys demo/keys/tour.keys \
+	./build/mgba_runner build/demo/sm64demo.gba --start-game --frames 2880 --keys demo/keys/tour.keys \
 	    --capture build/demo/frames 2 > /dev/null 2>&1
 	ffmpeg -loglevel error -y -framerate 30 -pattern_type glob -i "build/demo/frames/*.ppm" \
 	    -vf "scale=720:480:flags=neighbor" -c:v libx264 -pix_fmt yuv420p -crf 18 build/demo/preview.mp4
@@ -748,3 +772,7 @@ test: all
 
 clean:
 	rm -rf build
+
+.PHONY: import-title
+import-title:
+	python3 tools/import_title.py --rom "$(ROM)"
