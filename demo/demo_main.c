@@ -26,6 +26,8 @@
 #include "hud.h"
 #include "mannequin.h"
 #include "coins.h"
+#include "actors.h"
+#include "objects.h"
 #ifdef DEMO_IMPORTED
 #include "import.h"
 #endif
@@ -306,6 +308,8 @@ static void show_loading(s32 idx) {
     mannequin_commit();
     coins_hide();
     coins_commit();
+    actors_hide();
+    actors_commit();
 }
 
 static void load_level(s32 idx) {
@@ -315,6 +319,7 @@ static void load_level(s32 idx) {
 #endif
 
     show_loading(idx);
+    objects_clear(); /* the terrain's special objects (trees, ...) spawn into the pool */
     load_area_terrain(0, (TerrainData *) lvl->collision, NULL, NULL);
     if (gSurfaceNodesAllocated > DEMO_MAX_NODES || gSurfacesAllocated > DEMO_MAX_SURFACES) {
         halt_with("SURFACE POOL TOO SMALL");
@@ -336,10 +341,9 @@ static void load_level(s32 idx) {
     gMarioSpawnInfo->startAngle[1] = lvl->spawnYawDegrees * 0x8000 / 180;
     gMarioSpawnInfo->startAngle[2] = 0;
 
-    sMarioObject.header.gfx.node.flags = GRAPH_RENDER_ACTIVE | GRAPH_RENDER_HAS_ANIMATION;
-    sMarioObject.header.gfx.areaIndex = 1;
-    sMarioObject.header.gfx.activeAreaIndex = 1;
-    gMarioObject = &sMarioObject;
+    /* Mario as an object in the player list, like in the game */
+    gMarioObject = objects_spawn_mario();
+    (void) sMarioObject;
     gCurrentObject = gMarioObject;
     gMarioState = &gMarioStates[0];
     gPlayer1Controller = &gControllers[0];
@@ -373,6 +377,7 @@ static void load_level(s32 idx) {
 #endif
     coins_load(idx);
     spawn_mario();
+    objects_load(idx);
 #ifdef DEMO_BENCH
     sram_put(BENCH_LOADS_OFS + 2 * idx, gVBlankCount - v0, 2);
 #endif
@@ -413,9 +418,10 @@ static void mario_frame(u32 keys, u32 pressed) {
 
     gGlobalTimer++;
     gAreaUpdateCounter++;
-    gCurrentObject = gMarioObject;
-    gCurrentObject->oMarioParticleFlags = execute_mario_action(gCurrentObject);
-    copy_mario_state_to_object();
+    /* update_objects(): Mario's behavior (the harness's step), then the
+     * enemies; then the render pass's animation steps (src/obj/objects.c) */
+    objects_frame();
+    objects_render_step();
     mario_anim_render_step(gMarioObject);
 }
 
@@ -595,6 +601,7 @@ int main(void) {
     hud_init();
     mannequin_init();
     coins_init();
+    actors_init();
 
     /* VBlank interrupt for frame pacing */
     REG_IME = 0;
@@ -673,6 +680,7 @@ int main(void) {
         t2 = cycles_now();
         mannequinCycles = t2 - tm;
 #endif
+        actors_draw(&cam, q->farDist);
         coins_draw(&cam, q->farDist);
         t2 = cycles_now();
         physCycles = t1 - t0;
@@ -700,6 +708,7 @@ int main(void) {
         hud_commit();
         mannequin_commit();
         coins_commit();
+        actors_commit();
 #ifdef DEMO_BENCH
         bench_record(frame, vblanks, quality, physCycles, renderCycles);
 #endif
@@ -781,6 +790,8 @@ int main(void) {
                 { 'i', cam.yaw }, { 'j', cam.pitch },
                 /* the keys read this frame (demo/keys/bench.keys was made from them) */
                 { 'z', keys },
+                /* Mario's health (0x880 full): enemies hurt him */
+                { 'H', (u32) gMarioState->health },
             };
             u32 k;
             s32 j;

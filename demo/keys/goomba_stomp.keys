@@ -1,0 +1,7 @@
+# Bob-omb Battlefield: run toward the first Goomba, stop, and jump as it walks
+# under Mario: he lands on it and stomps it (the Goomba is removed).
+140 170 >
+170 300 ^
+300 302 ^>
+302 420 ^
+530 536 A

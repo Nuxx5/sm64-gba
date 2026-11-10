@@ -24,7 +24,7 @@
 #include "render.h"
 #include "coins.h"
 
-#include "levels/bob/areas/1/macro.inc.c"
+extern const MacroObject bob_seg7_macro_objs[]; /* src/obj/objects.c */
 
 extern const s16 gSinQ14[4096];
 
@@ -32,17 +32,17 @@ extern const s16 gSinQ14[4096];
 static const MacroObject *const kLevelMacros[] = { bob_seg7_macro_objs, NULL, NULL, NULL };
 
 #define MAX_COINS 96
-/* OAM slots after the HUD's (0..47), before the mannequin's (108..127): the
+/* OAM slots after the HUD's (0..47) and the enemies' (48..59), before the mannequin's (108..127): the
  * mannequin's big affine sprites use up the scanline's sprite time, and the
  * sprites first in OAM get it first. These are plain (not affine) sprites,
  * pre-scaled, which cost a fraction of an affine sprite's time. */
-#define OAM_FIRST 48
-#define OAM_COUNT 60
+#define OAM_FIRST 60
+#define OAM_COUNT 48       /* after the enemies' 48..59 (demo/actors.c) */
 #define COIN_TILE 600       /* pre-scaled sprites, 4bpp, 1D mapping: [color][frame][art size] */
 #define NUM_SIZES 12
 #define NUM_ART 9           /* sizes drawn as is; the rest are the 16 px art scaled by the GBA */
 #define MTX_FIRST 20        /* affine matrices for those, after the mannequin's 0..19 */
-#define SHADES 6            /* colors 3..8: yellow, 9..14: red (palette bank 0, after the HUD's) */
+#define SHADES 4            /* colors 3..6: yellow, 7..10: red (palette bank 0, after the HUD's) */
 #define FOCAL 200
 
 struct Coin {
@@ -192,10 +192,10 @@ static s32 art_pixel(s32 f, s32 k, s32 x, s32 y) {
     static const u8 kWidth[4] = { 16, 11, 3, 11 }; /* of 16 */
     s32 d = kSizes[k], r = d * 16, wq = kWidth[f];
     s32 dx = (2 * x + 1 - d) * 16 * 16 / wq, dy = (2 * y + 1 - d) * 16, dd = dx * dx + dy * dy;
-    if (f == 2) return (2 * x + 1 - d) * (2 * x + 1 - d) <= (d > 6 ? 4 : 1) && dy * dy <= r * r ? 3 : 0;
+    if (f == 2) return (2 * x + 1 - d) * (2 * x + 1 - d) <= (d > 6 ? 4 : 1) && dy * dy <= r * r ? 2 : 0;
     if (dd > r * r) return 0;
-    if (dd > (r * 3 / 4) * (r * 3 / 4)) return 3;
-    return (dx < -r / 6 && dy < 0) ? 6 : 5;
+    if (dd > (r * 3 / 4) * (r * 3 / 4)) return 2;
+    return (dx < -r / 6 && dy < 0) ? 4 : 3;
 #endif
 }
 

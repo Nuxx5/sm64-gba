@@ -351,12 +351,35 @@ deliberately; physics was never touched:
   drawn stand-in. Mario collects them (counter at the
   bottom left); they don't affect his physics, so the parity check is
   unchanged. They're plain hardware sprites, not depth tested, and drawn over
-  Mario. No coin boxes, no red coin star, and no enemies, platforms or doors
-  yet. Death planes and deaths respawn Mario at the level start.
+  Mario. No coin boxes and no red coin star yet.
+- **Enemies, in Bob-omb Battlefield: Goombas and Bob-ombs.** The decomp's own
+  object system runs on the GBA: object list processor, behavior script
+  interpreter, `object_helpers.c`, object collision and Mario's
+  `interaction.c`, with the Goomba, Goomba triplet spawner, Bob-omb,
+  explosion and respawner behaviors (`tools/gen_objsrc.py` copies the decomp's
+  sources cut down to those; `src/obj/`). They're spawned from the level's
+  macro object list at their original places, Mario is an object in the
+  player list like in the game, and everything else is the game's code:
+  Goombas wander and chase, Bob-ombs light their fuse, push Mario and explode,
+  Mario gets hurt and knocked back, stomps Goombas, and loses health. The
+  physics check covers it: the reference harness runs the same objects
+  (`build/host/harness_obj`), Mario stays bit-identical on every frame, and
+  `make demo-check` adds a run into a Goomba and a stomp (replayed without
+  objects, the first one diverges at the hit, as it should). Drawn as sprite
+  stand-ins (`demo/actors.c`), not depth tested. Not reproduced: particles and
+  sound (stubbed), and animation steps for objects out of view (the game only
+  advances animations it draws; here, all of them). Cost: Mario plus objects
+  average 99k cycles a frame instead of 41k (18% of a 30 Hz frame, 38% at
+  worst), so BoB renders one or two quality steps lower. No platforms, doors,
+  King Bob-omb or Chain Chomp yet. Death planes and deaths respawn Mario at
+  the level start.
 - **Memory:** the surface pools are sized for these four levels (frees ~70
   KB), and `mario_step.c` runs from ROM in the demo (its IWRAM is worth more
-  as stack). IWRAM: 27.6 KB used, 4.1 KB for the stack (measured high-water
-  mark: 1.8 KB, reached while a level loads). EWRAM: 247.9 KB of 256 KB.
+  as stack). The object pool holds 40 objects (24 KB; the game's 240 would be
+  146 KB), paid for by moving the decomp's read-only sine and arctangent
+  tables (22.5 KB) from EWRAM to ROM (`gba/demo.ld`), where 32-bit reads cost
+  the same. IWRAM: 27.6 KB used, 4.1 KB for the stack. EWRAM: 254.7 KB of
+  256 KB.
 - **Loading:** about 2 s per level (collision load, cache build, mesh build
   with wall trimming, pit detection), shown as a loading screen.
 
@@ -693,7 +716,8 @@ headroom for object surfaces, which frees about 70 KB.
 The code written for this project is MIT licensed (see `LICENSE`). Files
 derived from the [n64decomp/sm64](https://github.com/n64decomp/sm64)
 decompilation are not covered by it: `src/opt/surface_collision.c`,
-`src/anim.c`, and the snippets marked as copied in `src/stubs.c`,
+`src/anim.c`, `src/obj/obj_stubs.inc.c` (graph-node setup), the Mario script
+in `tools/gen_objsrc.py`, and the snippets marked as copied in `src/stubs.c`,
 `src/levels.c` and `src/test/props.c`. The decomp itself is fetched by
 `make fetch`, not included; so are devkitPro's gbafix (LGPL) and
 NanoBoyAdvance (GPL), fetched into `ext/` when a target needs them. The NBA

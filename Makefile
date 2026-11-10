@@ -380,6 +380,41 @@ gba-opt-test: build/host/harness $(OPT_GBA_ROMS) build/mgba_runner
 	$(PYTHON) tools/run_gba.py --host build/host/harness --runner build/mgba_runner \
 	    --roms build/gbaopt inputs/*.inp
 
+# ---------- objects ----------
+# The decomp's object system, cut down to the behaviors the demo uses
+# (tools/gen_objsrc.py), in a reference harness of its own: build/host/harness_obj
+# runs Mario as an object with the level's ported enemies (src/obj/objects.c).
+# The parity harness above stays object-free.
+OBJSRC := build/objsrc
+OBJ_GEN := $(OBJSRC)/g_object_list_processor.c $(OBJSRC)/g_object_helpers.c $(OBJSRC)/g_obj_behaviors.c \
+           $(OBJSRC)/g_obj_behaviors_2.c $(OBJSRC)/behavior_data_subset.c $(OBJSRC)/bhv_dummies_obj.c
+OBJ_DECOMP := behavior_script.c spawn_object.c object_collision.c interaction.c platform_displacement.c
+OBJ_OURS := objects.c obj_anims.c
+OBJ_CFLAGS := $(CORE_CFLAGS) -DHARNESS_OBJECTS -include $(OBJSRC)/object_list_processor.h -Isrc/obj
+OBJ_NAMES := $(notdir $(filter-out src/bhv_dummies.c,$(DECOMP_SRCS) $(OUR_SRCS)) $(OBJ_GEN) $(OBJ_DECOMP) $(OBJ_OURS))
+HOSTOBJ_OBJS := $(addprefix build/hostobj/,$(OBJ_NAMES:.c=.o)) \
+                build/hostobj/mario_anim_data.o build/host/platform_stdio.o build/host/sqrtf_host.o
+
+$(OBJ_GEN) &: tools/gen_objsrc.py
+	$(PYTHON) tools/gen_objsrc.py $(SM64) $(OBJSRC)
+
+build/hostobj:
+	mkdir -p $@
+
+build/hostobj/%.o: $(OBJSRC)/%.c $(OBJ_GEN) | build/hostobj
+	$(HOST_CC) $(HOST_ARCH) $(OBJ_CFLAGS) -c $< -o $@
+
+build/hostobj/%.o: src/obj/%.c $(OBJ_GEN) | build/hostobj
+	$(HOST_CC) $(HOST_ARCH) $(OBJ_CFLAGS) -c $< -o $@
+
+build/hostobj/%.o: %.c $(OBJ_GEN) $(ANIM_SRC) | build/hostobj
+	$(HOST_CC) $(HOST_ARCH) $(OBJ_CFLAGS) -c $< -o $@
+
+build/host/harness_obj: $(HOSTOBJ_OBJS)
+	$(HOST_CC) $(HOST_ARCH) $^ -o $@
+
+build/hostobj/stubs.o: src/obj/obj_stubs.inc.c
+
 # ---------- playable demo ----------
 # The same optimized Mario objects as build/gbaopt (bit-exact physics), plus
 # the demo loop and software renderer. Surface pools are sized for the four
@@ -387,11 +422,12 @@ gba-opt-test: build/host/harness $(OPT_GBA_ROMS) build/mgba_runner
 
 # mario_step.c runs from ROM here (Thumb, as in build/arm, also parity-tested):
 # its 5.7 KB of IWRAM is worth more as stack and renderer code.
-DEMO_CORE := $(filter-out build/armopt/harness_opt.o build/arm/stubs.o build/armopt/mario_step_iw.o,$(OPT_GBA_CORE)) \
+DEMO_CORE := $(filter-out build/armopt/harness_opt.o build/arm/stubs.o build/armopt/mario_step_iw.o \
+               build/armopt/anim_zc.o build/arm/bhv_dummies.o,$(OPT_GBA_CORE)) \
              build/arm/mario_step.o
 DEMO_OBJS := build/demo/demo_main.o build/demo/render_build.o build/demo/render_iw.o \
              build/demo/hud.o build/demo/irq.o build/demo/render_tables.o build/demo/stubs.o \
-             build/demo/mannequin.o build/demo/skeleton.o build/demo/coins.o
+             build/demo/mannequin.o build/demo/skeleton.o build/demo/coins.o build/demo/actors.o
 DEMO_CFLAGS := -O2 -w -fno-strict-aliasing -Idemo
 
 # Imported assets (make import ROM=...): build/import/import_data.c, made from
@@ -417,8 +453,8 @@ build/demo/render_tables.c: tools/gen_render_tables.py | build/demo
 build/demo/render_tables.o: build/demo/render_tables.c
 	$(ARM_CC) $(ARM_ARCH) -O2 -c $< -o $@
 
-build/demo/demo_main.o: demo/demo_main.c demo/coins.h demo/render.h demo/hud.h demo/mannequin.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) $(ANIM_SRC) | build/demo
-	$(ARM_CC) $(ARM_ARCH) $(CORE_CFLAGS) $(DEMO_DEFS) -Idemo -c $< -o $@
+build/demo/demo_main.o: demo/demo_main.c demo/coins.h demo/actors.h src/obj/objects.h $(OBJ_GEN) demo/render.h demo/hud.h demo/mannequin.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) $(ANIM_SRC) | build/demo
+	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) $(DEMO_DEFS) -Idemo -c $< -o $@
 
 build/demo/render_build.o: demo/render_build.c demo/render.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(CORE_CFLAGS) $(DEMO_DEFS) -Idemo -c $< -o $@
@@ -462,6 +498,9 @@ endif
 build/demo/coins.o: demo/coins.c demo/coins.h demo/render.h demo/gba.h $(DEMO_MODE_FILE) | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(CORE_CFLAGS) $(if $(COIN_ART_C),-DDEMO_COIN_ART,) -Idemo -c $< -o $@
 
+build/demo/actors.o: demo/actors.c demo/actors.h demo/render.h demo/gba.h $(OBJ_GEN) | build/demo
+	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -Idemo -c $< -o $@
+
 build/demo/coin_art.o: build/import/coin_art.c | build/demo
 	$(ARM_CC) $(ARM_ARCH) -O2 -c $< -o $@
 
@@ -471,11 +510,32 @@ build/demo/hud.o: demo/hud.c demo/hud.h demo/gba.h | build/demo
 build/demo/irq.o: demo/irq.s | build/demo
 	$(ARM_CC) -mcpu=arm7tdmi -c $< -o $@
 
-build/demo/stubs.o: src/stubs.c $(ANIM_SRC) | build/demo
-	$(ARM_CC) $(ARM_ARCH) $(CORE_CFLAGS) -DPOOL_BYTES=95488 -c $< -o $@
+build/demo/stubs.o: src/stubs.c src/obj/obj_stubs.inc.c $(OBJ_GEN) $(ANIM_SRC) | build/demo
+	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -DPOOL_BYTES=95488 -c $< -o $@
 
-build/demo/sm64demo.elf: build/gba/crt0.o $(DEMO_CORE) $(DEMO_OBJS) gba/gba_opt.ld
-	$(ARM_CC) $(subst gba/gba.ld,gba/gba_opt.ld,$(GBA_LDFLAGS)) build/gba/crt0.o $(DEMO_CORE) \
+# Objects (src/obj, tools/gen_objsrc.py): the decomp's object system in Thumb,
+# from ROM, and Mario's animation step built for it.
+DEMO_OBJ_OBJS := $(addprefix build/demo/obj/,$(notdir $(OBJ_GEN:.c=.o)) $(OBJ_DECOMP:.c=.o) $(OBJ_OURS:.c=.o)) \
+                 build/demo/obj/anim_zc.o
+DEMO_OBJS += $(DEMO_OBJ_OBJS)
+
+build/demo/obj:
+	mkdir -p $@
+
+build/demo/obj/%.o: $(OBJSRC)/%.c $(OBJ_GEN) | build/demo/obj
+	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -c $< -o $@
+
+build/demo/obj/%.o: src/obj/%.c $(OBJ_GEN) | build/demo/obj
+	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -c $< -o $@
+
+build/demo/obj/%.o: %.c $(OBJ_GEN) | build/demo/obj
+	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -c $< -o $@
+
+build/demo/obj/anim_zc.o: src/anim.c $(OBJ_GEN) $(ANIM_SRC) | build/demo/obj
+	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -DANIM_ZERO_COPY -c $< -o $@
+
+build/demo/sm64demo.elf: build/gba/crt0.o $(DEMO_CORE) $(DEMO_OBJS) gba/demo.ld
+	$(ARM_CC) $(subst gba/gba.ld,gba/demo.ld,$(GBA_LDFLAGS)) build/gba/crt0.o $(DEMO_CORE) \
 	    $(DEMO_OBJS) -lm -lc -lgcc $(DEMO_LDWRAP) -Wl,-Map,$@.map -o $@
 
 # Real hardware: the BIOS only boots a ROM whose header has the Nintendo
@@ -496,9 +556,12 @@ demo: build/demo/sm64demo.gba
 # Plays the demo in mGBA: (1) the physics check replays the inputs the demo
 # fed Mario through the host reference and compares his position every frame,
 # (2) a tour of all four levels reports frame rate and quality steps used.
-demo-check: build/demo/sm64demo.gba build/mgba_runner build/host/harness
+demo-check: build/demo/sm64demo.gba build/mgba_runner build/host/harness_obj
 	$(PYTHON) tools/demo_physics_check.py --runner build/mgba_runner --rom build/demo/sm64demo.gba \
-	    --harness build/host/harness --keys demo/keys/physics_check.keys --frames 1500
+	    --harness build/host/harness_obj --keys demo/keys/physics_check.keys --frames 1500
+	for k in goomba_hit goomba_stomp; do \
+	    $(PYTHON) tools/demo_physics_check.py --runner build/mgba_runner --rom build/demo/sm64demo.gba \
+	        --harness build/host/harness_obj --keys demo/keys/$$k.keys --frames 950 || exit 1; done
 	./build/mgba_runner build/demo/sm64demo.gba --frames 2880 --keys demo/keys/tour.keys > build/demo/tour.log 2>/dev/null
 	$(PYTHON) tools/demo_stats.py build/demo/tour.log
 

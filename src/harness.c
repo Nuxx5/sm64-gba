@@ -29,6 +29,9 @@
 #include "game/object_list_processor.h"
 #include "levels.h"
 #include "platform.h"
+#ifdef HARNESS_OBJECTS
+#include "objects.h"
+#endif
 
 
 void adjust_analog_stick(struct Controller *controller);
@@ -173,6 +176,9 @@ static int str_eq(const char *a, const char *b) {
 
 static void load_level(const struct HarnessLevel *lvl) {
     alloc_surface_pools();
+#ifdef HARNESS_OBJECTS
+    objects_clear(); /* the terrain's special objects (trees, ...) spawn into the pool */
+#endif
     load_area_terrain(0, (TerrainData *) lvl->collision, NULL, NULL);
 
     sArea.index = 1;
@@ -190,11 +196,22 @@ static void load_level(const struct HarnessLevel *lvl) {
     gMarioSpawnInfo->startAngle[0] = 0;
     gMarioSpawnInfo->startAngle[1] = lvl->spawnYawDegrees * 0x8000 / 180;
     gMarioSpawnInfo->startAngle[2] = 0;
+#ifdef OBJ_DEBUG_SPAWN
+    gMarioSpawnInfo->startPos[0] = OBJ_DEBUG_SPAWN_X;
+    gMarioSpawnInfo->startPos[1] = OBJ_DEBUG_SPAWN_Y;
+    gMarioSpawnInfo->startPos[2] = OBJ_DEBUG_SPAWN_Z;
+#endif
 
+#ifdef HARNESS_OBJECTS
+    /* Mario as an object in the player list, like in the game */
+    gMarioObject = objects_spawn_mario();
+    (void) sMarioObject;
+#else
     sMarioObject.header.gfx.node.flags = GRAPH_RENDER_ACTIVE | GRAPH_RENDER_HAS_ANIMATION;
     sMarioObject.header.gfx.areaIndex = 1;
     sMarioObject.header.gfx.activeAreaIndex = 1;
     gMarioObject = &sMarioObject;
+#endif
     gCurrentObject = gMarioObject;
 
     setup_dma_table_list(&gMarioAnimsBuf, (void *) &gMarioAnims, sMarioAnimBuffer);
@@ -204,6 +221,9 @@ static void load_level(const struct HarnessLevel *lvl) {
     gCurrSaveFileNum = 1;
     init_mario_from_save_file();
     init_mario();
+#ifdef HARNESS_OBJECTS
+    objects_load((s32) (lvl - gHarnessLevels));
+#endif
 }
 
 static void log_frame(s32 frame) {
@@ -301,9 +321,19 @@ int main(void) {
         /* One game frame: area update, then Mario's behavior, then render. */
         gGlobalTimer++;
         gAreaUpdateCounter++;
+#ifdef HARNESS_OBJECTS
+        /* update_objects(): Mario's behavior (the three lines below), then the
+         * other objects; then the render pass's animation steps */
+        objects_frame();
+        objects_render_step();
+#ifdef OBJ_DEBUG
+        { void objects_debug(s32); if (frame % 60 == 0) objects_debug(frame); }
+#endif
+#else
         gCurrentObject = gMarioObject;
         gCurrentObject->oMarioParticleFlags = execute_mario_action(gCurrentObject);
         copy_mario_state_to_object();
+#endif
         mario_anim_render_step(gMarioObject);
 
         plat_frame_end();

@@ -148,6 +148,7 @@ void mario_anim_render_step(struct Object *marioObj) {
     node->animTimer = gAreaUpdateCounter;
 }
 
+#ifndef HARNESS_OBJECTS /* the object builds compile object_list_processor.c itself */
 /* object_list_processor.c (single-player path). */
 extern struct MarioState gMarioStates[];
 
@@ -177,6 +178,8 @@ void copy_mario_state_to_object(void) {
     gCurrentObject->oAngleVelYaw = gMarioStates[i].angleVel[1];
     gCurrentObject->oAngleVelRoll = gMarioStates[i].angleVel[2];
 }
+
+#endif
 
 /* game_init.c */
 void adjust_analog_stick(struct Controller *controller) {

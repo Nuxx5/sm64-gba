@@ -13,7 +13,7 @@ and converts what the demo needs into build/import/import_data.c.
   no decomp tools need to be built).
 - Nothing from the ROM is copied as is: textures are reduced to one average
   color per triangle, skyboxes to a 16-step gradient, and the coin's four
-  spin textures to small sprites in 6 shades (build/import/coin_art.c).
+  spin textures to small sprites in 4 shades (build/import/coin_art.c).
 
 The output is derived from your ROM: keep it, and the demo ROM built from it,
 to yourself.
@@ -430,7 +430,7 @@ COIN_TEXTURES = ["actors/coin/coin_front.ia16.png", "actors/coin/coin_tilt_right
 # Sprite sizes in pixels: must match kArtSizes in demo/coins.c (larger coins
 # are the 16 px sprite scaled up by the GBA).
 COIN_SIZES = [3, 4, 5, 6, 8, 10, 12, 14, 16]
-COIN_SHADES = 6
+COIN_SHADES = 4  # must match SHADES in demo/coins.c
 
 
 def coin_sprite(tex, size):

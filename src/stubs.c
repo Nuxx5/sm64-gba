@@ -30,36 +30,25 @@ u16 gAreaUpdateCounter;
 u32 gGlobalTimer;
 u32 gAudioRandom;
 struct MarioBodyState gBodyStates[2];
-s16 gCCMEnteredSlide;
 struct Camera *gCamera;
 s16 gCameraMovementFlags;
-s16 gCheckingSurfaceCollisionsForCamera;
 struct Controller gControllers[3];
 s16 gCurrAreaIndex;
 struct CreditsEntry *gCurrCreditsEntry;
 s16 gCurrLevelNum;
 s16 gCurrSaveFileNum = 1;
 struct Area *gCurrentArea;
-struct Object *gCurrentObject;
 struct Object *gCutsceneFocus;
 s8 gDebugLevelSelect;
 s32 gDialogResponse;
-s32 gEnvironmentLevels[20];
-TerrainData *gEnvironmentRegions;
-s16 gFindFloorIncludeSurfaceIntangible;
 f32 gGlobalSoundSource[3];
 struct HudDisplay gHudDisplay;
 u8 gLastCompletedCourseNum;
 u8 gLastCompletedStarNum;
 struct DmaHandlerList gMarioAnimsBuf;
-struct Object *gMarioObject;
 struct SpawnInfo *gMarioSpawnInfo;
 struct MarioState *gMarioState;
 s8 gNeverEnteredCastle;
-struct NumTimesCalled gNumCalls;
-s32 gNumFindFloorMisses;
-s32 gNumStaticSurfaceNodes;
-s32 gNumStaticSurfaces;
 f32 gPaintingMarioYEntry;
 struct Controller *gPlayer1Controller;
 struct PlayerCameraState gPlayerCameraState[2];
@@ -67,14 +56,29 @@ struct SpawnInfo gPlayerSpawnInfos[1];
 s16 gSaveOptSelectIndex;
 s8 gShowDebugText;
 u8 gSpecialTripleJump;
+Vec3f gVec3fZero = { 0.0f, 0.0f, 0.0f };
+
+#ifndef HARNESS_OBJECTS
+/* owned by object_list_processor.c in the object builds */
+s16 gCCMEnteredSlide;
+s16 gCheckingSurfaceCollisionsForCamera;
+struct Object *gCurrentObject;
+s32 gEnvironmentLevels[20];
+TerrainData *gEnvironmentRegions;
+s16 gFindFloorIncludeSurfaceIntangible;
+struct Object *gMarioObject;
+struct NumTimesCalled gNumCalls;
+s32 gNumFindFloorMisses;
+s32 gNumStaticSurfaceNodes;
+s32 gNumStaticSurfaces;
 s32 gSurfaceNodesAllocated;
 s32 gSurfacesAllocated;
 u32 gTimeStopState;
-Vec3f gVec3fZero = { 0.0f, 0.0f, 0.0f };
 
 /* Special-object parsing (macro_special_objects.c) needs these. */
 struct Object gMacroObjectDefaultParent;
 struct Object *gMacroObjectDefaultParentPtr;
+#endif
 
 /* ---------- memory ---------- */
 
@@ -103,6 +107,7 @@ void *main_pool_alloc(u32 size, UNUSED u32 side) {
 void *segmented_to_virtual(const void *addr) { return (void *) addr; }
 void *virtual_to_segmented(UNUSED u32 segment, const void *addr) { return (void *) addr; }
 
+#ifndef HARNESS_OBJECTS
 /* ---------- objects: spawned into a sink, never simulated ---------- */
 
 static struct Object sObjectSink;
@@ -148,6 +153,10 @@ void mario_stop_riding_and_holding(UNUSED struct MarioState *m) {}
 void mario_stop_riding_object(UNUSED struct MarioState *m) {}
 void mario_throw_held_object(UNUSED struct MarioState *m) {}
 u32 get_door_save_file_flag(UNUSED struct Object *door) { return 0; }
+
+#else
+#include "obj/obj_stubs.inc.c"
+#endif
 
 /* ---------- camera ---------- */
 
