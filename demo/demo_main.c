@@ -274,9 +274,17 @@ static void camera_update(struct MarioState *m, u32 keys, struct RCamera *out) {
 
 static s32 sLevel;
 
+/* Lives, as in the game: 4 at the start, one lost per death; dying with
+ * none left is game over (the level restarts with 4). They're the demo's,
+ * kept across respawns: init_mario_from_save_file() resets numLives. */
+#define START_LIVES 4
+static s32 sLives = START_LIVES;
+static s32 sGameOver;
+
 static void spawn_mario(void) {
     init_mario_from_save_file();
     init_mario();
+    gMarioState->numLives = (s8) sLives;
     gHarnessWarpRequest = 0;
     camera_reset(gMarioState);
 }
@@ -436,8 +444,36 @@ static void check_respawn(void) {
     struct MarioState *m = gMarioState;
     if (gHarnessWarpRequest || m->floor == NULL || m->pos[1] < -10500.0f
         || (m->floor->type == SURFACE_DEATH_PLANE && m->pos[1] < m->floorHeight + 2048.0f)) {
+        /* every way back to the start is a death: health run out, death
+         * planes, falling off the course */
+        if (sLives == 0) {
+            sGameOver = 1; /* handled at the top of the next frame */
+            return;
+        }
+        sLives--;
         spawn_mario();
     }
+}
+
+/* "GAME OVER" on a black screen for 3 s. */
+static void show_game_over(void) {
+    u32 t0;
+    sfx_silence();
+    hud_clear();
+    hud_text(120 - 9 * 5 / 2, 76, "GAME OVER");
+    while (REG_VCOUNT >= 160) {}
+    while (REG_VCOUNT < 160) {}
+    PAL_BG[0] = 0;
+    REG_DISPCNT = DCNT_MODE4 | DCNT_OBJ | DCNT_OBJ_1D;
+    hud_commit();
+    mannequin_hide();
+    mannequin_commit();
+    coins_hide();
+    coins_commit();
+    actors_hide();
+    actors_commit();
+    t0 = gVBlankCount;
+    while (gVBlankCount - t0 < 180) {}
 }
 
 static void player_from_mario(struct RPlayer *p) {
@@ -643,8 +679,14 @@ int main(void) {
         if (frame == gBenchFrames) bench_done(frame);
 #endif
 
-        if (pressed & KEY_START) {
-            sLevel = (sLevel + 1) % gNumHarnessLevels;
+        if ((pressed & KEY_START) || sGameOver) {
+            if (sGameOver) {
+                show_game_over(); /* then the same level again, with 4 lives */
+                sGameOver = 0;
+                sLives = START_LIVES;
+            } else {
+                sLevel = (sLevel + 1) % gNumHarnessLevels;
+            }
             load_level(sLevel);
             REG_DISPCNT = DCNT_MODE4 | DCNT_BG2 | DCNT_OBJ | DCNT_OBJ_1D;
             hud_clear();
@@ -748,7 +790,11 @@ int main(void) {
         if ((frame & 7) == 0 || !showHud) {
             char *p = line;
             hud_clear();
+            *p++ = 'L'; *p++ = 'I'; *p++ = 'V'; *p++ = 'E'; *p++ = 'S'; *p++ = ' ';
+            p = hud_fmt_int(p, sLives, 1);
+            *p = 0;
             if (gRedCoinTotal || gCoinCount) {
+                *p++ = ' '; *p++ = ' ';
                 *p++ = 'C'; *p++ = 'O'; *p++ = 'I'; *p++ = 'N'; *p++ = 'S'; *p++ = ' ';
                 p = hud_fmt_int(p, gCoinCount, 1);
                 if (gRedCoinTotal) {
@@ -758,8 +804,8 @@ int main(void) {
                     p = hud_fmt_int(p, gRedCoinTotal, 1);
                 }
                 *p = 0;
-                hud_text(2, 150, line);
             }
+            hud_text(2, 150, line);
         }
         if (showHud && (frame & 7) == 0) {
             char *p = line;
@@ -800,6 +846,7 @@ int main(void) {
                 { 'H', (u32) gMarioState->health },
                 /* Goombas alive: a stomp shows as a drop (tools/demo_physics_check.py) */
                 { 'G', (u32) objects_count(bhvGoomba) },
+                { 'V', (u32) sLives },
             };
             u32 k;
             s32 j;

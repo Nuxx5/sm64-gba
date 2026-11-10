@@ -374,7 +374,12 @@ deliberately; physics was never touched:
   average 99k cycles a frame instead of 41k (18% of a 30 Hz frame, 38% at
   worst), so BoB renders one or two quality steps lower. No platforms, doors,
   King Bob-omb or Chain Chomp yet. Death planes and deaths respawn Mario at
-  the level start.
+  the level start, at the cost of a life.
+- **Lives and game over:** as in the game, Mario starts with 4 lives and
+  loses one per death (health run out by enemies, death planes, falling off);
+  dying with none left shows GAME OVER and restarts the level with 4. Lives
+  are shown at the bottom left. Health itself is the game's (8 wedges, coins
+  heal), not drawn.
 - **Scenery: BoB's trees, drawn only.** The 17 trees from the level's
   special object list, at their places, as sprites (`demo/actors.c`): no
   behavior runs, so Mario can't climb them, and they cost no CPU beyond
