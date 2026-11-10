@@ -29,6 +29,20 @@ SHA-1. Keep the upload, extracted assets and built ROMs out of Git.
 - All three real demo sequences now parse and render: grass 1,419 notes,
   snow 1,753, koopa road 1,704. Song lengths are about 72.2/91.0/71.1 s.
   The older "never run on a real ROM" notes below describe the prior state.
+- Real imported builds exposed two memory issues: EWRAM overflow and too
+  little IWRAM stack. The import now emits `import_limits.h` so renderer
+  mesh/cache capacities match the largest imported level (670 vertices,
+  1,058 triangles), retaining all geometry. The blob-shadow routine moves
+  to ROM in imported builds. Sampled build EWRAM use: 253,236 bytes; IWRAM
+  stack available: 2,640 bytes, measured tour peak: 2,000 bytes.
+- Validation: full US import and library integrity pass; 1,267 ordinary
+  textures plus ten skyboxes match native decomp tools. `make music-check`
+  passes. Both PCM and chip `make demo-check` pass all three physics routes
+  (669/331/342 frames, including hurt/stomp). Tours reach 30 fps on about
+  95%/94% of frames respectively; CCM is 87%, so performance work remains.
+  `make test`: 23/23 scripts, 53,139 frames. `make gba-opt-test`: 23/23 ROMs.
+  This cloud kernel rejects i386 executables; the unchanged 32-bit PC
+  reference binaries were run through `qemu-i386` using local build wrappers.
 
 ## Ground rules (keep these)
 

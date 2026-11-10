@@ -444,7 +444,14 @@ DEMO_MODE_FILE := build/demo/mode.$(DEMO_MODE)
 $(shell mkdir -p build/demo; [ -f $(DEMO_MODE_FILE) ] || { rm -f build/demo/mode.*; touch $(DEMO_MODE_FILE); })
 ifneq ($(IMPORT_C),)
 DEMO_OBJS += build/demo/import_data.o
+build/demo/demo_main.o build/demo/render_build.o build/demo/render_iw.o \
+build/demo/mannequin.o build/demo/actors.o build/demo/coins.o build/demo/hud.o \
+build/demo/demo_main_bench.o: build/import/import_limits.h
 endif
+
+build/import/import_limits.h:
+	@echo "missing imported mesh limits: rerun make import ROM=path/to/your/sm64.z64" >&2
+	@exit 1
 DEMO_LDWRAP := $(OPT_LDWRAP) -Wl,--wrap=alloc_surface_pools -Wl,--wrap=clear_dynamic_surfaces -Wl,--wrap=sqrtf -Wl,--wrap=atan2s
 
 build/demo:

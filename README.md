@@ -125,6 +125,12 @@ rendering, animation and behavior support. Extracting their files does not
 spawn them or add new playable levels. The library is not linked wholesale
 into the GBA ROM or loaded into its limited RAM.
 
+The demo import also generates `build/import/import_limits.h`, sizing its
+render mesh and vertex caches to the largest imported level. This keeps the
+real model, music and existing objects within GBA RAM without dropping mesh
+triangles. If reusing an import from an older checkout, rerun `make import`
+to generate this header before building the demo.
+
 | On screen | Without a ROM | With your ROM |
 |---|---|---|
 | Mario | wooden mannequin (sprites) | his real low-poly model, animated |
