@@ -453,8 +453,17 @@ build/demo/skeleton.o: build/demo/skeleton.c
 build/demo/mannequin.o: demo/mannequin.c demo/mannequin.h demo/render.h demo/gba.h $(DEMO_MODE_FILE) $(ANIM_SRC) | build/demo
 	$(ARM_CC) $(ARM_MODE) $(CORE_CFLAGS) $(DEMO_DEFS) -Idemo -c $< -o $@
 
-build/demo/coins.o: demo/coins.c demo/coins.h demo/render.h demo/gba.h | build/demo
-	$(ARM_CC) $(ARM_ARCH) $(CORE_CFLAGS) -Idemo -c $< -o $@
+# The coin art from the import (make import ROM=...), when present.
+COIN_ART_C := $(if $(NOIMPORT),,$(wildcard build/import/coin_art.c))
+ifneq ($(COIN_ART_C),)
+DEMO_OBJS += build/demo/coin_art.o
+endif
+
+build/demo/coins.o: demo/coins.c demo/coins.h demo/render.h demo/gba.h $(DEMO_MODE_FILE) | build/demo
+	$(ARM_CC) $(ARM_ARCH) $(CORE_CFLAGS) $(if $(COIN_ART_C),-DDEMO_COIN_ART,) -Idemo -c $< -o $@
+
+build/demo/coin_art.o: build/import/coin_art.c | build/demo
+	$(ARM_CC) $(ARM_ARCH) -O2 -c $< -o $@
 
 build/demo/hud.o: demo/hud.c demo/hud.h demo/gba.h | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(DEMO_CFLAGS) -c $< -o $@

@@ -120,6 +120,7 @@ def textures_used(decomp):
         tex = t["state"]["texture"]
         if tex and not tex.startswith("?"):
             paths.add(tex)
+    paths.update(ir.COIN_TEXTURES)
     return sorted(paths)
 
 

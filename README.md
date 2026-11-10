@@ -345,7 +345,10 @@ deliberately; physics was never touched:
 - **Objects: coins only, in Bob-omb Battlefield.** Yellow and red coins
   (single coins, lines and rings) at their original places, read from the
   level's macro object list in the decomp (`demo/coins.c`), with the game's
-  formation offsets and floor snap. Mario collects them (counter at the
+  formation offsets and floor snap. They spin like the game's (4 frames, 2 game
+  frames each) and, after `make import ROM=...`, use the game's own coin art
+  from your ROM (`build/import/coin_art.c`, never committed); otherwise a
+  drawn stand-in. Mario collects them (counter at the
   bottom left); they don't affect his physics, so the parity check is
   unchanged. They're plain hardware sprites, not depth tested, and drawn over
   Mario. No coin boxes, no red coin star, and no enemies, platforms or doors
