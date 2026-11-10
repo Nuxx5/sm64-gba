@@ -7,8 +7,8 @@ decomp's sources into build/tools):
   2. Texture formats: random texels in every format the import supports,
      decoded by import_rom.py and exported by n64graphics, are identical.
   3. Byte orders: .v64 and .n64 orderings normalize to the .z64 bytes.
-  4. With a ROM (--rom): every texture the import reads (Mario's and the four
-     levels') and the skyboxes, decoded by import_rom.py and extracted the
+  4. With a ROM (--rom): every ordinary texture available in that version
+     and the skyboxes, decoded by import_rom.py and extracted the
      way the decomp's extract_assets.py does it, are identical.
 
 Usage: test_import.py [--decomp sm64] [--rom ROM]
@@ -26,7 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import import_rom as ir  # noqa: E402
 import n64gfx  # noqa: E402
 
-FORMATS = {"rgba16": 2, "rgba32": 4, "ia16": 2, "ia8": 1, "ia4": 0.5, "i8": 1, "i4": 0.5}
+FORMATS = {"rgba16": 2, "rgba32": 4, "ia16": 2, "ia8": 1, "ia4": 0.5, "ia1": 0.125, "i8": 1, "i4": 0.5}
 
 
 def build_tools(decomp, out):
@@ -136,7 +136,10 @@ def test_rom(tools, tmp, decomp, rom_path):
     open(romz, "wb").write(rom)
     amap = assets.map
     ok, n = True, 0
-    for path in textures_used(decomp):
+    paths = sorted(path for path, meta in amap.items()
+                   if path.endswith(".png") and ver in meta[-1]
+                   and not path.startswith(("textures/skyboxes/", "levels/ending/cake")))
+    for path in paths:
         meta = amap[path]
         size, pos = meta[-2], meta[-1][ver]
         if len(pos) == 2:

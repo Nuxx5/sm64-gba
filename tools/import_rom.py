@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Import tool, in the spirit of libsm64: reads YOUR copy of Super Mario 64
-and converts what the demo needs into build/import/import_data.c.
+and extracts every available asset into build/import/library, then converts
+what the demo supports into build/import/import_data.c.
 
     tools/import_rom.py ROM [--decomp sm64] [--out build/import]
 
@@ -11,10 +12,13 @@ and converts what the demo needs into build/import/import_data.c.
   sources; the ROM provides the textures, located with the decomp's
   assets.json (MIO0 decompression and N64 texture decoding are done here, so
   no decomp tools need to be built).
-- Nothing from the ROM is copied as is: textures are reduced to one average
-  color per triangle, skyboxes to a 16-step gradient, and the sprites
-  (build/import/sprite_art.c) to small images in 15 colors or fewer: the
-  coin's four spin textures, the bubbly tree, and the power meter.
+- The complete offline library contains all available textures, skyboxes,
+  samples, sequences and binary data, plus model/object source definitions.
+  Every image also has RGB555 palettes and tiled 4bpp GBA data. The library
+  manifest records provenance, dimensions, groups and checksums.
+- The demo conversion uses a subset: triangle colors, sky gradients, coin,
+  tree and meter sprites, and three songs. Importing an object into the
+  library does not implement its behavior or rendering in the GBA engine.
 
 The output is derived from your ROM: keep it, and the demo ROM built from it,
 to yourself.
@@ -117,6 +121,10 @@ def decode_texture(raw, fmt, w, h):
         for i in range(n):
             b = raw[i // 2] >> 4 if i % 2 == 0 else raw[i // 2] & 15
             px.append((((b >> 1) & 7) * 0x24,) * 3 + (255 if b & 1 else 0,))
+    elif fmt == "ia1":
+        for i in range(n):
+            v = 255 if raw[i // 8] & (0x80 >> (i % 8)) else 0
+            px.append((v,) * 4)
     elif fmt == "i8":
         for i in range(n):
             px.append((raw[i],) * 3 + (255,))
@@ -720,11 +728,19 @@ def main():
     ap.add_argument("rom")
     ap.add_argument("--decomp", default="sm64")
     ap.add_argument("--out", default="build/import")
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--assets-only", action="store_true", help="extract the full library without building demo data")
+    mode.add_argument("--demo-only", action="store_true", help="convert only the demo's supported assets")
     args = ap.parse_args()
 
     rom, order = normalize_rom(open(args.rom, "rb").read())
     ver, sha = identify(rom, args.decomp)
     print("ROM: %s byte order, version %s, SHA-1 %s" % (order, ver, sha))
+    if not args.demo_only:
+        from asset_library import import_library
+        import_library(rom, ver, sha, args.decomp, args.out)
+    if args.assets_only:
+        return
     assets = Assets(rom, ver, args.decomp)
 
     mario = convert_mario(args.decomp, assets)

@@ -78,6 +78,8 @@ make skeleton-check          # animated figure vs the game's float matrix chain
 make import ROM=path/to/your/sm64.z64   # optional: the game's art, see "With your ROM"
 make demo                                # rebuilds with the import (NOIMPORT=1: without)
 make import-check ROM=...                # the import's ROM reading vs the decomp's tools
+make import-assets ROM=...               # full offline library, without demo conversion
+make asset-library-check                # verify the library and GBA texture conversions
 
 make render-check                        # the renderer vs a z-buffered reference, around pits
 
@@ -93,6 +95,36 @@ copy of the game (US, JP, EU, Shindou or iQue; its SHA-1 is checked) and
 writes `build/import/`, which is never committed; `make demo` then uses it,
 `NOIMPORT=1` builds without it, and `make unimport` deletes it.
 
+`make import` now also extracts the complete asset library for the detected
+ROM version, rather than just the demo's selected art and music. For the US
+ROM this is 1,539 assets: actor textures, level and UI textures, all ten
+skyboxes and the ending background, 219 sound samples, 34 music sequences,
+and binary data. The pinned decomp's own extractor runs in a temporary copy;
+the `sm64/` checkout is left unchanged. `make import-assets ROM=...` runs this
+library step by itself using native host tools (no ARM compiler needed).
+
+The library lives in `build/import/library/`:
+
+| Path | Contents |
+|---|---|
+| `actors/`, `levels/`, `textures/`, `sound/` | Original-size PNGs, AIFF samples, M64 sequences and other extracted data |
+| `sources/` | Decomp model meshes, geo layouts, animations, collision, level scripts and object behavior definitions |
+| `gba/` | Every PNG converted to 4bpp tiles and a 16-entry little-endian RGB555 palette; index zero is transparent |
+| `manifest.json` | ROM hash, decomp revision, per-file sizes and SHA-256 checksums, actor/level groups, image dimensions and tile paths |
+
+GBA images retain their dimensions with transparent padding to an 8-pixel
+boundary. Large backgrounds are tile grids for streaming; model textures
+are texture data, not automatically rendered character sprites. The manifest
+also lists assets unavailable in the selected ROM version. A failed library
+extraction preserves the previous complete library. Details go to
+`build/import/extraction.log`.
+
+The full library is available for further engine work. The playable demo
+currently consumes the subset below: other imported objects still need GBA
+rendering, animation and behavior support. Extracting their files does not
+spawn them or add new playable levels. The library is not linked wholesale
+into the GBA ROM or loaded into its limited RAM.
+
 | On screen | Without a ROM | With your ROM |
 |---|---|---|
 | Mario | wooden mannequin (sprites) | his real low-poly model, animated |
@@ -107,7 +139,9 @@ writes `build/import/`, which is never committed; `make demo` then uses it,
 
 Everything is reduced on the way: triangle colors, 16-step sky gradients,
 sprites in 15 colors or fewer. `make import-check ROM=...` checks every
-texture the import reads against the decomp's own extraction tools.
+ordinary texture available in that ROM version against the decomp's own
+extraction tools. `make asset-library-check` checks every library file and
+ensures every extracted image has GBA tile and palette data.
 
 The ROM isn't distributed: it contains code and data compiled from the
 decomp, so it's built locally, like the decomp itself.

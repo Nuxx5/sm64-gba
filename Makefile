@@ -474,6 +474,15 @@ import:
 	@test -n "$(ROM)" || { echo "usage: make import ROM=path/to/your/sm64.z64"; exit 1; }
 	$(PYTHON) tools/import_rom.py "$(ROM)" --decomp $(SM64) --out build/import
 
+# Extract the complete offline library without converting the demo subset.
+.PHONY: import-assets asset-library-check
+import-assets:
+	@test -n "$(ROM)" || { echo "usage: make import-assets ROM=path/to/your/sm64.z64"; exit 1; }
+	$(PYTHON) tools/import_rom.py "$(ROM)" --decomp $(SM64) --out build/import --assets-only
+
+asset-library-check:
+	$(PYTHON) tools/test_asset_library.py --decomp $(SM64) $(if $(wildcard build/import/library/manifest.json),--library build/import/library,)
+
 unimport:
 	rm -rf build/import
 
@@ -511,6 +520,7 @@ build/sqrtf_check: src/test/sqrtf_check.c src/fast/sqrtf_exact.c
 
 # The music import without a ROM: sequence player, VADPCM vs the SDK, arrangement, renderer.
 music-check:
+	$(PYTHON) tools/test_n64seq.py
 	$(PYTHON) tools/test_music.py --decomp $(SM64)
 
 sqrtf-check: build/sqrtf_check

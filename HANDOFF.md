@@ -4,6 +4,32 @@ Written for whoever continues this (another assistant or a person). Read
 `README.md` first for the project itself; this file covers what this branch
 added, how to check it, and what is half done.
 
+## Continuation: full asset library and real-ROM music (2026-11-10)
+
+The user requested all assets, not only music, and text-only updates (do not
+post videos or pictures in chat). Their uploaded US ROM matches the expected
+SHA-1. Keep the upload, extracted assets and built ROMs out of Git.
+
+- `make import ROM=...` now extracts the complete version-specific library
+  before the existing demo conversion. `make import-assets ROM=...` extracts
+  only the library, using native host tools. See `tools/asset_library.py`.
+- The pinned extractor runs in a disposable workspace, leaving `sm64/`
+  unchanged. US extraction verified: 1,539 ROM assets and 2,512 decomp source
+  definitions. All 1,278 PNGs also produce GBA 4bpp tiles and RGB555 palettes.
+  The library manifest has hashes, provenance, actor/level groups and image
+  dimensions. `make asset-library-check` verifies the complete output.
+- Full extraction is separate from engine support: imported model textures
+  are not rendered enemy sprites; behavior sources do not activate new
+  objects. The demo still uses its existing four-level subset.
+- Real music initially skipped every demo song. `sequence_channel_enable`
+  preserves instrument and large-note settings when restarting a channel;
+  the Python player reset them and lost instruction alignment. Fixed channel
+  restart/reinitialization and `chan_writeseq` semantics, with original
+  bytecode regression fixtures in `tools/test_n64seq.py`.
+- All three real demo sequences now parse and render: grass 1,419 notes,
+  snow 1,753, koopa road 1,704. Song lengths are about 72.2/91.0/71.1 s.
+  The older "never run on a real ROM" notes below describe the prior state.
+
 ## Ground rules (keep these)
 
 1. **Mario's physics stay bit-exact.** Every gameplay change must keep
