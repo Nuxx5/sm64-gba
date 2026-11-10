@@ -392,7 +392,7 @@ int main(int argc, char **argv) {
     }
     if (sramPath != NULL) {
         sDone = bench_done(core, sramPath);
-    } else if (captureDir != NULL || sNumKeyRanges > 0 || hashFile != NULL) {
+    } else if (captureDir != NULL || sNumKeyRanges > 0 || hashFile != NULL || audioFile != NULL) {
         sDone = 1; /* demo runs end on the frame limit */
     }
 

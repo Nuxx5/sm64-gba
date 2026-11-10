@@ -28,6 +28,7 @@
 #include "coins.h"
 #include "actors.h"
 #include "sfx.h"
+#include "music.h"
 #include "objects.h"
 #include "behavior_data.h"
 #ifdef DEMO_IMPORTED
@@ -350,6 +351,7 @@ static void load_level(s32 idx) {
 #endif
 
     show_loading(idx);
+    music_stop();
     sfx_silence();
     objects_clear(); /* the terrain's special objects (trees, ...) spawn into the pool */
     load_area_terrain(0, (TerrainData *) lvl->collision, NULL, NULL);
@@ -411,6 +413,7 @@ static void load_level(s32 idx) {
     spawn_mario();
     objects_load(idx);
     actors_load_scenery();
+    music_start(idx);
 #ifdef DEMO_BENCH
     sram_put(BENCH_LOADS_OFS + 2 * idx, gVBlankCount - v0, 2);
 #endif
@@ -479,6 +482,7 @@ static void check_respawn(void) {
 /* "GAME OVER" on a black screen for 3 s. */
 static void show_game_over(void) {
     u32 t0;
+    music_stop();
     sfx_silence();
     hud_clear();
     hud_text(120 - 9 * 5 / 2, 76, "GAME OVER");
@@ -666,6 +670,7 @@ int main(void) {
     coins_init();
     actors_init();
     sfx_init();
+    music_init();
     hud_meter_init();
 
     /* VBlank interrupt for frame pacing */

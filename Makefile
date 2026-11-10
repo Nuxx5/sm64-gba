@@ -428,7 +428,7 @@ DEMO_CORE := $(filter-out build/armopt/harness_opt.o build/arm/stubs.o build/arm
              build/arm/mario_step.o
 DEMO_OBJS := build/demo/demo_main.o build/demo/render_build.o build/demo/render_iw.o \
              build/demo/hud.o build/demo/irq.o build/demo/render_tables.o build/demo/stubs.o \
-             build/demo/mannequin.o build/demo/skeleton.o build/demo/coins.o build/demo/actors.o build/demo/sfx.o build/demo/sqrtf_exact.o
+             build/demo/mannequin.o build/demo/skeleton.o build/demo/coins.o build/demo/actors.o build/demo/sfx.o build/demo/sqrtf_exact.o build/demo/music.o
 DEMO_CFLAGS := -O2 -w -fno-strict-aliasing -Idemo
 
 # Imported assets (make import ROM=...): build/import/import_data.c, made from
@@ -438,7 +438,7 @@ DEMO_CFLAGS := -O2 -w -fno-strict-aliasing -Idemo
 IMPORT_C := $(if $(NOIMPORT),,$(wildcard build/import/import_data.c))
 SPRITE_ART_C := $(if $(NOIMPORT),,$(wildcard build/import/sprite_art.c))
 SPRITE_ART_DEF := $(if $(SPRITE_ART_C),-DDEMO_SPRITE_ART,)
-DEMO_MODE := $(if $(IMPORT_C),imported,plain)$(if $(SPRITE_ART_C),-art,)
+DEMO_MODE := $(if $(IMPORT_C),imported,plain)$(if $(SPRITE_ART_C),-art,)$(if $(wildcard build/import/music_data.c),-music,)
 DEMO_DEFS := $(if $(IMPORT_C),-DDEMO_IMPORTED,)
 DEMO_MODE_FILE := build/demo/mode.$(DEMO_MODE)
 $(shell mkdir -p build/demo; [ -f $(DEMO_MODE_FILE) ] || { rm -f build/demo/mode.*; touch $(DEMO_MODE_FILE); })
@@ -456,7 +456,7 @@ build/demo/render_tables.c: tools/gen_render_tables.py | build/demo
 build/demo/render_tables.o: build/demo/render_tables.c
 	$(ARM_CC) $(ARM_ARCH) -O2 -c $< -o $@
 
-build/demo/demo_main.o: demo/demo_main.c demo/sfx.h demo/coins.h demo/actors.h src/obj/objects.h $(OBJ_GEN) demo/render.h demo/hud.h demo/mannequin.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) $(ANIM_SRC) | build/demo
+build/demo/demo_main.o: demo/demo_main.c demo/sfx.h demo/music.h demo/coins.h demo/actors.h src/obj/objects.h $(OBJ_GEN) demo/render.h demo/hud.h demo/mannequin.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) $(ANIM_SRC) | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) $(DEMO_DEFS) -Idemo -c $< -o $@
 
 build/demo/render_build.o: demo/render_build.c demo/render.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) | build/demo
@@ -512,7 +512,19 @@ build/sqrtf_check: src/test/sqrtf_check.c src/fast/sqrtf_exact.c
 sqrtf-check: build/sqrtf_check
 	./build/sqrtf_check
 
-build/demo/sfx.o: demo/sfx.c demo/sfx.h demo/gba.h $(OBJ_GEN) | build/demo
+# Music from the import (build/import/music_data.c), when present.
+MUSIC_C := $(if $(NOIMPORT),,$(wildcard build/import/music_data.c))
+ifneq ($(MUSIC_C),)
+DEMO_OBJS += build/demo/music_data.o
+endif
+
+build/demo/music.o: demo/music.c demo/music.h demo/gba.h $(DEMO_MODE_FILE) | build/demo
+	$(ARM_CC) $(ARM_ARCH) $(DEMO_CFLAGS) -I$(SM64)/include $(if $(MUSIC_C),-DDEMO_MUSIC,) -c $< -o $@
+
+build/demo/music_data.o: build/import/music_data.c | build/demo
+	$(ARM_CC) $(ARM_ARCH) -O2 -c $< -o $@
+
+build/demo/sfx.o: demo/sfx.c demo/sfx.h demo/music.h demo/gba.h $(OBJ_GEN) | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -Idemo -c $< -o $@
 
 build/demo/actors.o: demo/actors.c demo/actors.h demo/render.h demo/gba.h $(OBJ_GEN) $(DEMO_MODE_FILE) | build/demo

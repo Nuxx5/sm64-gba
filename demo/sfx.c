@@ -17,6 +17,14 @@
 #include "game/level_update.h"
 #include "gba.h"
 #include "sfx.h"
+#include "music.h"
+
+extern volatile u32 gVBlankCount;
+
+/* channel 1..4 belongs to an effect for this many VBlanks (the music waits) */
+static void busy(s32 ch, u32 vblanks) {
+    gSfxBusyUntil[ch - 1] = gVBlankCount + vblanks;
+}
 
 #define REG16(a) (*(volatile u16 *) (a))
 #define SND1_SWEEP REG16(0x04000060)
@@ -83,12 +91,16 @@ static s32 known_effect(u32 bits) {
 }
 
 static void seq_start(const u16 *notes, s32 vol) {
+    const u16 *p = notes;
+    while (*p) p++;
+    busy(2, (u32) (p - notes) * 2 + 8);
     sSeq = notes;
     sSeqVol = vol;
 }
 
 static void noise(s32 vol, s32 step, s32 shift, s32 ratio, s32 width7) {
     if (sNoiseLock > 0) return;
+    busy(4, step ? (u32) (vol * step * 4 + 2) : 8);
     SND4_ENV = (u16) ENV(vol, step, 0);
     SND4_FREQ = (u16) (0x8000 | (shift << 4) | (width7 ? 8 : 0) | ratio);
 }
@@ -96,16 +108,19 @@ static void noise(s32 vol, s32 step, s32 shift, s32 ratio, s32 width7) {
 static void fire(s32 fx, s32 vol) {
     switch (fx) {
         case FX_JUMP: /* square rising */
+            busy(1, 16);
             SND1_SWEEP = (u16) ((2 << 4) | 2);              /* time 2, increase, shift 2 */
             SND1_ENV = (u16) ENV(vol, 2, 2);
             SND1_FREQ = (u16) (0x8000 | HZ(392));
             break;
         case FX_HURT: /* square falling, harsh duty */
+            busy(1, 24);
             SND1_SWEEP = (u16) ((3 << 4) | 0x08 | 2);       /* time 3, decrease, shift 2 */
             SND1_ENV = (u16) ENV(vol, 3, 1);
             SND1_FREQ = (u16) (0x8000 | HZ(880));
             break;
         case FX_THROW:
+            busy(1, 10);
             SND1_SWEEP = (u16) ((1 << 4) | 0x08 | 3);
             SND1_ENV = (u16) ENV(vol * 2 / 3, 1, 2);
             SND1_FREQ = (u16) (0x8000 | HZ(659));
@@ -135,6 +150,7 @@ static void fire(s32 fx, s32 vol) {
             sNoiseLock = 0;
             noise(vol, 5, 6, 7, 0);
             sNoiseLock = 45;
+            busy(4, 90);
             break;
         case FX_COIN:
             seq_start(kCoinNotes, vol);

@@ -17,10 +17,21 @@ irq_handler:
     orr     r3, r3, r1
     strh    r3, [r2]                @ BIOS IF, for IntrWait
     tst     r1, #1
-    ldrne   r2, =gVBlankCount
-    ldrne   r3, [r2]
-    addne   r3, r3, #1
-    strne   r3, [r2]
+    bxeq    lr
+    ldr     r2, =gVBlankCount
+    ldr     r3, [r2]
+    add     r3, r3, #1
+    str     r3, [r2]
+    @ gVBlankHook (demo/music.c), if set: the music player, on the BIOS's IRQ
+    @ stack (keep it shallow). r0-r3 and r12 are saved by the BIOS.
+    ldr     r2, =gVBlankHook
+    ldr     r2, [r2]
+    cmp     r2, #0
+    bxeq    lr
+    push    {lr}
+    mov     lr, pc
+    bx      r2
+    pop     {lr}
     bx      lr
     .pool
 
