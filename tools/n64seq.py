@@ -145,6 +145,19 @@ def play(data, max_seconds=600.0, bank=0):
     loop = None
     seq_done = False
 
+    def start_channel(index, pc):
+        # sequence_channel_enable restarts the script/layers, but preserves
+        # the instrument, large-note mode, volume, transpose and other state.
+        # Real songs initialize these once and reuse channels across sections.
+        ch = channels[index]
+        if ch is None:
+            ch = channels[index] = Channel(pc)
+            ch.bank = bank
+        ch.s = Script(pc)
+        ch.enabled = True
+        ch.delay = 0
+        ch.layers = [None] * LAYERS
+
     def note_on(ch, ci, ly, cmd_note, gate_ticks, velocity):
         nonlocal notes
         drum = (ch.instr if ly.instr is None else ly.instr) == 0x7F  # the bank's drum kit
@@ -302,10 +315,10 @@ def play(data, max_seconds=600.0, bank=0):
                         a = u16(s)
                         v = data[(a + ch.value) & 0xFFFF]
                         ch.value = v - 256 if v >= 128 else v
-                    elif cmd == 0xC7:        # writeseq: data[addr + value] = u8
+                    elif cmd == 0xC7:        # writeseq: data[addr] = u8 + value
                         v = u8(s)
                         a = u16(s)
-                        data[(a + ch.value) & 0xFFFF] = v
+                        data[a] = (v + ch.value) & 0xFF
                     elif cmd == 0xC6:
                         ch.bank = u8(s)
                     elif cmd == 0xC5:
@@ -333,7 +346,7 @@ def play(data, max_seconds=600.0, bank=0):
                         ch.value = 1 if (ly is None or not ly.enabled) else 0
                     elif op == 0x10:         # startchannel
                         a = u16(s)
-                        channels[lo] = Channel(a)
+                        start_channel(lo, a)
                     elif op == 0x20:         # disablechannel
                         if channels[lo]:
                             channels[lo].enabled = False
@@ -404,7 +417,13 @@ def play(data, max_seconds=600.0, bank=0):
                 elif cmd == 0xDA:
                     seq_volume += s8(seq)
                 elif cmd in (0xD7, 0xD6):
-                    u16(seq)
+                    mask = u16(seq)
+                    for i in range(CHANNELS):
+                        if mask & (1 << i):
+                            channels[i] = Channel(0) if cmd == 0xD7 else None
+                            if channels[i]:
+                                channels[i].enabled = False
+                                channels[i].bank = bank
                 elif cmd == 0xD2:
                     a = u16(seq)
                     short_vel[:] = data[a:a + 16]
@@ -424,7 +443,7 @@ def play(data, max_seconds=600.0, bank=0):
                     if cmd & 0xF0 == 0x80:
                         seq_value = 0
                 elif cmd & 0xF0 == 0x90:        # startchannel
-                    channels[cmd & 0xF] = Channel(u16(seq))
+                    start_channel(cmd & 0xF, u16(seq))
                 else:
                     raise SeqError("sequence command %02x at %04x" % (cmd, seq.pc - 1))
         if seq_done:

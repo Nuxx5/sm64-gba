@@ -583,7 +583,11 @@ static void draw_world_poly(s32 (*w)[3], s32 n, u32 color) {
 }
 
 /* The player's blob shadow (the body is the mannequin's sprites, or the
- * imported model drawn by draw_mario). */
+ * imported model drawn by draw_mario). The imported model needs additional
+ * IWRAM code; keep this once-per-frame shadow in ROM to leave stack space. */
+#ifdef DEMO_IMPORTED
+ROM_CODE
+#endif
 static void draw_player(const struct RPlayer *pl) {
     s32 k;
 

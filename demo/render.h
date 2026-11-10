@@ -7,8 +7,14 @@
 
 #include "gba.h"
 
+#ifdef DEMO_IMPORTED
+#include "../build/import/import_limits.h"
+#define R_MAX_VERTS IMP_MAX_LEVEL_VERTS
+#define R_MAX_TRIS IMP_MAX_LEVEL_TRIS
+#else
 #define R_MAX_VERTS 960
 #define R_MAX_TRIS 1280
+#endif
 #define R_MAX_CHUNKS 256    /* 16x16 chunks of 1024 units, grouped 2x2 under 64 parents */
 #define R_MAX_SUPERS 64
 #define R_MAX_POLYS 1200    /* polygons queued per frame */

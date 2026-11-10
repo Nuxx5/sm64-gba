@@ -36,3 +36,5 @@ jobs:
         run: make dirty-check
       - name: ROM import readers vs the decomp's tools
         run: make import-check
+      - name: Asset library and music import (synthetic data)
+        run: make asset-library-check music-check enemy-check

@@ -4,6 +4,86 @@ Written for whoever continues this (another assistant or a person). Read
 `README.md` first for the project itself; this file covers what this branch
 added, how to check it, and what is half done.
 
+## Continuation: animated imported enemies (2026-11-10)
+
+Goombas and black Bob-ombs now use the original models and ROM textures,
+baked offline by `tools/bake_enemies.py`. The existing object behaviors and
+physics are unchanged. `make import ROM=...` generates `enemy_art.c` and
+`enemy_art.json`; a standalone baker command can refresh only that art.
+
+- 384 poses: Goomba walk, Bob-omb walk/held, two eye states, eight directions
+  and eight animation phases. Original geo layouts, scale, animation
+  channels and billboard nodes are interpreted. Lighting and the 15-degree
+  orthographic sprite camera are approximations. Runtime selects the pose
+  using gfx facing, curAnim/frame and oAnimState; object animation helpers
+  do not update Mario's animID field, so Bob-omb uses curAnim identity.
+- Each pose has 16px/32px 4bpp tiles, with shared OBJ palette bank 15. Two
+  nearby actors can use 32px art. Per-object affine matrices preserve gfx
+  scale and squash. Sprites remain billboards without terrain depth tests.
+- Imported-only VRAM: large slots 768..799; small slots 800..831 and
+  576..591 (the unused mannequin ball); explosion 592..595. Existing coins
+  at 600..767 and trees at 832+ are unchanged. Matrices 0..11 are reused
+  after mannequin_commit while Mario uses his real model. Tile uploads are
+  cached and done in VBlank (at most 2,304 bytes/frame). Fallback art and
+  its allocations remain available in NOIMPORT builds.
+- `make enemy-check` adds synthetic alpha/depth, rotation and billboard
+  tests; validates all pose/view/eye-state images and transparent borders;
+  and compares live mGBA OAM/VRAM tile and palette hashes against baked data.
+  Both Goomba and Bob-omb, both sprite sizes and 130 distinct images were
+  observed: 1,731 sampled-build / 1,730 chip-build sprite observations.
+  The runner's `--sprite-report FILE` is text-only; no pictures are posted.
+- Full import and library checks passed. Both music builds pass demo physics
+  checks including hurt/stomp (sampled: 674/328/340 frames; chip:
+  674/327/339). `make test`: 23/23 scripts, 53,139 frames;
+  `make gba-opt-test`: 23/23 ROMs; randomized-memory check: 1,238 game frames
+  and 2,880 framebuffer hashes identical. NOIMPORT demo-check also passes.
+  Imported tours reach 30 fps on about 94%/93% of frames (sampled/chip).
+  Sampled EWRAM use: 253,344 bytes; IWRAM stack peak 2,000 of 2,640 bytes.
+
+No ROM, baked art, generated audio or built ROMs belong in Git. Keep updates
+text-only as requested. Refresh both private ROM downloads after rebuilding.
+
+## Continuation: full asset library and real-ROM music (2026-11-10)
+
+The user requested all assets, not only music, and text-only updates (do not
+post videos or pictures in chat). Their uploaded US ROM matches the expected
+SHA-1. Keep the upload, extracted assets and built ROMs out of Git.
+
+- `make import ROM=...` now extracts the complete version-specific library
+  before the existing demo conversion. `make import-assets ROM=...` extracts
+  only the library, using native host tools. See `tools/asset_library.py`.
+- The pinned extractor runs in a disposable workspace, leaving `sm64/`
+  unchanged. US extraction verified: 1,539 ROM assets and 2,512 decomp source
+  definitions. All 1,278 PNGs also produce GBA 4bpp tiles and RGB555 palettes.
+  The library manifest has hashes, provenance, actor/level groups and image
+  dimensions. `make asset-library-check` verifies the complete output.
+- Full extraction is separate from engine support: the Goomba/Bob-omb
+  sprite path above now uses some of those models, but other imported
+  behavior sources do not activate new objects. The demo still uses its
+  existing four-level subset.
+- Real music initially skipped every demo song. `sequence_channel_enable`
+  preserves instrument and large-note settings when restarting a channel;
+  the Python player reset them and lost instruction alignment. Fixed channel
+  restart/reinitialization and `chan_writeseq` semantics, with original
+  bytecode regression fixtures in `tools/test_n64seq.py`.
+- All three real demo sequences now parse and render: grass 1,419 notes,
+  snow 1,753, koopa road 1,704. Song lengths are about 72.2/91.0/71.1 s.
+  The older "never run on a real ROM" notes below describe the prior state.
+- Real imported builds exposed two memory issues: EWRAM overflow and too
+  little IWRAM stack. The import now emits `import_limits.h` so renderer
+  mesh/cache capacities match the largest imported level (670 vertices,
+  1,058 triangles), retaining all geometry. The blob-shadow routine moves
+  to ROM in imported builds. Sampled build EWRAM use: 253,236 bytes; IWRAM
+  stack available: 2,640 bytes, measured tour peak: 2,000 bytes.
+- Validation: full US import and library integrity pass; 1,267 ordinary
+  textures plus ten skyboxes match native decomp tools. `make music-check`
+  passes. Both PCM and chip `make demo-check` pass all three physics routes
+  (669/331/342 frames, including hurt/stomp). Tours reach 30 fps on about
+  95%/94% of frames respectively; CCM is 87%, so performance work remains.
+  `make test`: 23/23 scripts, 53,139 frames. `make gba-opt-test`: 23/23 ROMs.
+  This cloud kernel rejects i386 executables; the unchanged 32-bit PC
+  reference binaries were run through `qemu-i386` using local build wrappers.
+
 ## Ground rules (keep these)
 
 1. **Mario's physics stay bit-exact.** Every gameplay change must keep
