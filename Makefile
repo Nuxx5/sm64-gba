@@ -562,9 +562,10 @@ demo: build/demo/sm64demo.gba
 demo-check: build/demo/sm64demo.gba build/mgba_runner build/host/harness_obj
 	$(PYTHON) tools/demo_physics_check.py --runner build/mgba_runner --rom build/demo/sm64demo.gba \
 	    --harness build/host/harness_obj --keys demo/keys/physics_check.keys --frames 1500
-	for k in goomba_hit goomba_stomp; do \
-	    $(PYTHON) tools/demo_physics_check.py --runner build/mgba_runner --rom build/demo/sm64demo.gba \
-	        --harness build/host/harness_obj --keys demo/keys/$$k.keys --frames 950 || exit 1; done
+	$(PYTHON) tools/demo_physics_check.py --runner build/mgba_runner --rom build/demo/sm64demo.gba \
+	    --harness build/host/harness_obj --keys demo/keys/goomba_hit.keys --frames 950 --expect hurt
+	$(PYTHON) tools/demo_physics_check.py --runner build/mgba_runner --rom build/demo/sm64demo.gba \
+	    --harness build/host/harness_obj --keys demo/keys/goomba_stomp.keys --frames 950 --expect stomp
 	./build/mgba_runner build/demo/sm64demo.gba --frames 2880 --keys demo/keys/tour.keys > build/demo/tour.log 2>/dev/null
 	$(PYTHON) tools/demo_stats.py build/demo/tour.log
 

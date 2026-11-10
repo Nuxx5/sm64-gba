@@ -94,6 +94,18 @@ void objects_load(s32 level) {
     spawn_macro_objects(1, sMacroList);
 }
 
+/* Active objects running a behavior (for the demo's checks). */
+s32 objects_count(const BehaviorScript *behavior) {
+    s32 i, n = 0;
+    for (i = 0; i < OBJECT_POOL_CAPACITY; i++) {
+        if (gObjectPool[i].activeFlags != ACTIVE_FLAG_DEACTIVATED
+            && gObjectPool[i].behavior == segmented_to_virtual(behavior)) {
+            n++;
+        }
+    }
+    return n;
+}
+
 void objects_frame(void) {
     update_objects(0);
 }

@@ -364,7 +364,8 @@ deliberately; physics was never touched:
   Mario gets hurt and knocked back, stomps Goombas, and loses health. The
   physics check covers it: the reference harness runs the same objects
   (`build/host/harness_obj`), Mario stays bit-identical on every frame, and
-  `make demo-check` adds a run into a Goomba and a stomp (replayed without
+  `make demo-check` adds a run into a Goomba and a stomp, and fails if
+  Mario doesn't actually get hurt or the Goomba isn't removed (replayed without
   objects, the first one diverges at the hit, as it should). Drawn as sprite
   stand-ins (`demo/actors.c`), not depth tested. Not reproduced: particles, and animation steps for objects out of view (the game only
   advances animations it draws; here, all of them). Cost: Mario plus objects

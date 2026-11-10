@@ -29,6 +29,7 @@
 #include "actors.h"
 #include "sfx.h"
 #include "objects.h"
+#include "behavior_data.h"
 #ifdef DEMO_IMPORTED
 #include "import.h"
 #endif
@@ -796,6 +797,8 @@ int main(void) {
                 { 'z', keys },
                 /* Mario's health (0x880 full): enemies hurt him */
                 { 'H', (u32) gMarioState->health },
+                /* Goombas alive: a stomp shows as a drop (tools/demo_physics_check.py) */
+                { 'G', (u32) objects_count(bhvGoomba) },
             };
             u32 k;
             s32 j;
