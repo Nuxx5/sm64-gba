@@ -208,7 +208,7 @@ def import_library(rom, version, sha, decomp, out):
                         unavailable_in_version=sorted(path for path in asset_map
                             if not path.startswith("@") and path not in expected_set),
                         runtime_note="Offline asset library. The demo currently uses Mario, four levels, "
-                        "coin/tree/meter art and three music tracks. Other models and object behaviors "
+                        "coin/tree/meter art, baked enemy sprites and three music tracks. Other models and object behaviors "
                         "require GBA conversion and engine support; extraction does not enable them.")
         (library / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
         verify_library(library)

@@ -21,6 +21,7 @@
  *                     debug stats), not GBA frames
  *   --capture DIR K   write every K-th frame as DIR/NNNNNN.ppm
  *   --video-hash FILE one line per frame: FNV-1a hash of the picture
+ *   --sprite-report F text OAM/VRAM hashes of imported enemy sprites
  *   --audio FILE      record the sound output as a 32 kHz stereo WAV file
  *   --dirty SEED      fill memory with pseudo-random bytes before boot
  *   --sram FILE       the bench ROM: run until its record in save RAM is
@@ -259,6 +260,35 @@ static uint32_t video_hash(const color_t *video, unsigned w, unsigned h) {
     return hash;
 }
 
+/* Text-only probe of imported enemy OAM/VRAM for tools/test_enemies.py.
+ * Hash the real uploaded tiles and palette, not a simulated sprite path. */
+static uint32_t memory_hash(struct mCore *core, uint32_t address, unsigned size) {
+    uint32_t h = 2166136261u;
+    unsigned i;
+    for (i = 0; i < size; i++) h = (h ^ core->rawRead8(core, address + i, -1)) * 16777619u;
+    return h;
+}
+
+static void sprite_report(struct mCore *core, FILE *out, long frame) {
+    int slot;
+    for (slot = 36; slot < 48; slot++) {
+        uint32_t address = 0x07000000 + (uint32_t) slot * 8;
+        uint16_t a0 = core->rawRead16(core, address, -1);
+        uint16_t a1 = core->rawRead16(core, address + 2, -1);
+        uint16_t a2 = core->rawRead16(core, address + 4, -1);
+        unsigned box, tile, matrix;
+        if (!(a0 & 0x0100) || (a2 >> 12) != 15) continue;
+        box = (a1 >> 14) == 2 ? 32 : 16;
+        tile = a2 & 0x3FF;
+        matrix = (a1 >> 9) & 31;
+        fprintf(out, "%ld %d %u %u %u %04x %04x %08x %08x\n", frame, slot, box, tile, matrix,
+                core->rawRead16(core, 0x07000000 + matrix * 32 + 6, -1),
+                core->rawRead16(core, 0x07000000 + matrix * 32 + 30, -1),
+                memory_hash(core, 0x06010000 + tile * 32, box * box / 2),
+                memory_hash(core, 0x05000200 + 15 * 32 + 2, 30));
+    }
+}
+
 int main(int argc, char **argv) {
     static struct mLogger logger = { .log = on_log };
     struct mCore *core;
@@ -271,6 +301,7 @@ int main(int argc, char **argv) {
     const char *sramPath = NULL;
     FILE *hashFile = NULL;
     FILE *audioFile = NULL;
+    FILE *spriteFile = NULL;
     long audioSamples = 0;
     long dirtySeed = -1;
     int i;
@@ -296,6 +327,12 @@ int main(int argc, char **argv) {
         } else if (strcmp(argv[i], "--keys-game") == 0 && i + 1 < argc) {
             load_keys(argv[++i]);
             sKeysByGameFrame = 1;
+        } else if (strcmp(argv[i], "--sprite-report") == 0 && i + 1 < argc) {
+            spriteFile = fopen(argv[++i], "w");
+            if (spriteFile == NULL) {
+                fprintf(stderr, "mgba_runner: cannot write %s\n", argv[i]);
+                return 2;
+            }
         } else if (strcmp(argv[i], "--audio") == 0 && i + 1 < argc) {
             audioFile = fopen(argv[++i], "wb");
             if (audioFile == NULL) {
@@ -381,6 +418,7 @@ int main(int argc, char **argv) {
         if (hashFile != NULL) {
             fprintf(hashFile, "%08x\n", video_hash(video, width, height));
         }
+        if (spriteFile != NULL) sprite_report(core, spriteFile, frames);
         frames++;
         if (sramPath != NULL && frames % 60 == 0
             && core->rawRead8(core, 0x0E000000 + BENCH_STATE_OFS, -1) == BENCH_DONE) {
@@ -390,9 +428,10 @@ int main(int argc, char **argv) {
     if (hashFile != NULL) {
         fclose(hashFile);
     }
+    if (spriteFile != NULL) fclose(spriteFile);
     if (sramPath != NULL) {
         sDone = bench_done(core, sramPath);
-    } else if (captureDir != NULL || sNumKeyRanges > 0 || hashFile != NULL || audioFile != NULL) {
+    } else if (captureDir != NULL || sNumKeyRanges > 0 || hashFile != NULL || audioFile != NULL || spriteFile != NULL) {
         sDone = 1; /* demo runs end on the frame limit */
     }
 

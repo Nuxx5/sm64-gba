@@ -438,7 +438,9 @@ DEMO_CFLAGS := -O2 -w -fno-strict-aliasing -Idemo
 IMPORT_C := $(if $(NOIMPORT),,$(wildcard build/import/import_data.c))
 SPRITE_ART_C := $(if $(NOIMPORT),,$(wildcard build/import/sprite_art.c))
 SPRITE_ART_DEF := $(if $(SPRITE_ART_C),-DDEMO_SPRITE_ART,)
-DEMO_MODE := $(if $(IMPORT_C),imported,plain)$(if $(SPRITE_ART_C),-art,)$(if $(wildcard build/import/music_data.c),-music$(if $(filter chip,$(MUSIC)),-chip,),)
+ENEMY_ART_C := $(if $(IMPORT_C),$(wildcard build/import/enemy_art.c),)
+ENEMY_ART_DEF := $(if $(ENEMY_ART_C),-DDEMO_ENEMY_ART,)
+DEMO_MODE := $(if $(IMPORT_C),imported,plain)$(if $(SPRITE_ART_C),-art,)$(if $(ENEMY_ART_C),-enemies,)$(if $(wildcard build/import/music_data.c),-music$(if $(filter chip,$(MUSIC)),-chip,),)
 DEMO_DEFS := $(if $(IMPORT_C),-DDEMO_IMPORTED,)
 DEMO_MODE_FILE := build/demo/mode.$(DEMO_MODE)
 $(shell mkdir -p build/demo; [ -f $(DEMO_MODE_FILE) ] || { rm -f build/demo/mode.*; touch $(DEMO_MODE_FILE); })
@@ -489,6 +491,15 @@ import-assets:
 
 asset-library-check:
 	$(PYTHON) tools/test_asset_library.py --decomp $(SM64) $(if $(wildcard build/import/library/manifest.json),--library build/import/library,)
+
+.PHONY: enemy-check
+ifneq ($(ENEMY_ART_C),)
+enemy-check: build/demo/sm64demo.gba build/mgba_runner
+	$(PYTHON) tools/test_enemies.py --runner build/mgba_runner
+else
+enemy-check:
+	$(PYTHON) tools/test_enemies.py
+endif
 
 unimport:
 	rm -rf build/import
@@ -561,8 +572,14 @@ build/demo/music_data.o: build/import/music_data.c | build/demo
 build/demo/sfx.o: demo/sfx.c demo/sfx.h demo/music.h demo/gba.h $(OBJ_GEN) | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -Idemo -c $< -o $@
 
-build/demo/actors.o: demo/actors.c demo/actors.h demo/render.h demo/gba.h $(OBJ_GEN) $(DEMO_MODE_FILE) | build/demo
-	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) $(SPRITE_ART_DEF) -Idemo -c $< -o $@
+build/demo/actors.o: demo/actors.c demo/actors.h demo/enemy_art.h demo/render.h demo/gba.h $(OBJ_GEN) $(DEMO_MODE_FILE) | build/demo
+	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) $(SPRITE_ART_DEF) $(ENEMY_ART_DEF) -Idemo -c $< -o $@
+
+ifneq ($(ENEMY_ART_C),)
+DEMO_OBJS += build/demo/enemy_art.o
+endif
+build/demo/enemy_art.o: build/import/enemy_art.c demo/enemy_art.h | build/demo
+	$(ARM_CC) $(ARM_ARCH) -O2 -Idemo -c $< -o $@
 
 build/demo/sprite_art.o: build/import/sprite_art.c | build/demo
 	$(ARM_CC) $(ARM_ARCH) -O2 -c $< -o $@

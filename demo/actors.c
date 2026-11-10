@@ -2,8 +2,10 @@
  * Enemies on screen: every active object in the decomp's object pool whose
  * model the demo knows (Goomba, Bob-omb, explosion) is drawn as a billboard
  * sprite, sized by distance and by the object's own scale. The game's
- * models are textured 3D meshes; these are drawn stand-ins, 16x16 designs
- * pre-scaled like the coins (demo/coins.c), and not depth tested.
+ * models are textured 3D meshes. With an import, their real models and
+ * animations are baked offline into 16/32px sprites, selected by facing,
+ * animation frame and eye state. Otherwise these are drawn stand-ins.
+ * Sprites are not depth tested against the terrain.
  *
  * Scenery: the level's trees (its special objects, spawned by the game when
  * the terrain loads) are drawn the same way, only drawn: no behavior runs,
@@ -81,6 +83,61 @@ static const s16 kWorldSize[NUM_KINDS] = { 110, 110, 160 }; /* sprite height at 
 static const s16 kCenterY[NUM_KINDS] = { 55, 55, 0 };       /* above the object's origin */
 static u16 sTile[NUM_KINDS][NUM_ART];
 static u16 sOam[OAM_COUNT][3];
+
+#ifdef DEMO_ENEMY_ART
+#include "enemy_art.h"
+extern const struct Animation *const bobomb_seg8_anims_0802396C[];
+#define ENEMY_BANK 15
+#define EXPLOSION_TILE 592
+/* Imported Mario doesn't use the mannequin ball at 576..591. Two nearby
+ * enemies get 32px art in 768..799; twelve independent 16px slots occupy
+ * 800..831 and 576..591. The explosion has 592..595. Coins start at 600,
+ * trees at 832. Upload at most 2*512 + 10*128 bytes during VBlank. */
+static const u16 *sEnemyPending[OAM_COUNT], *sEnemyLoaded[OAM_COUNT + 2];
+static u8 sEnemyCache[OAM_COUNT];
+static u16 sEnemyPA[OAM_COUNT], sEnemyPD[OAM_COUNT];
+
+static void enemy_sprite(struct Object *o, s32 kind, s32 slot, s32 sx, s32 sy,
+                         s32 depth, s32 diam, u16 cameraYaw, s32 *nearCount) {
+    s32 box = 16, tile = EXPLOSION_TILE, bank = 0;
+    s32 width = diam, height = diam;
+    sEnemyPending[slot] = NULL;
+    if (kind < 2) {
+        struct AnimInfo *ai = &o->header.gfx.animInfo;
+        /* Object animation helpers change curAnim, not Mario's animID. */
+        s32 animation = kind == 0 ? 0 : 1 + (ai->curAnim == bobomb_seg8_anims_0802396C[1]);
+        s32 frame = ai->animFrame, view, index, cache;
+        if (frame < 0) frame = 0;
+        if (frame >= gImpEnemyLength[animation]) frame = gImpEnemyLength[animation] - 1;
+        view = ((u16) (cameraYaw - o->header.gfx.angle[1] + 0x1000)) >> 13;
+        index = (((o->oAnimState & 1) * 8 + view) * 8) + gImpEnemyPhase[animation][frame];
+        width = PERSP((s32) (gImpEnemySize[kind] * o->header.gfx.scale[0]), depth);
+        bank = ENEMY_BANK;
+        if ((width >= 20 || height >= 20) && *nearCount < 2) {
+            box = 32;
+            cache = OAM_COUNT + *nearCount;
+            tile = 768 + (*nearCount)++ * 16;
+            sEnemyPending[slot] = gImpEnemyLarge[animation][index];
+        } else {
+            cache = slot;
+            tile = slot < 8 ? 800 + slot * 4 : 576 + (slot - 8) * 4;
+            sEnemyPending[slot] = gImpEnemySmall[animation][index];
+        }
+        sEnemyCache[slot] = (u8) cache;
+    }
+    if (width < 1) width = 1;
+    if (height < 1) height = 1;
+    if (width > box * 2) width = box * 2;
+    if (height > box * 2) height = box * 2;
+    /* Affine reciprocals from the renderer's ROM table: no division per
+     * enemy. Matrices 0..11 are free while Mario uses his real 3D model. */
+    sEnemyPA[slot] = (u16) ((box * gRecipZ[width]) >> 16);
+    sEnemyPD[slot] = (u16) ((box * gRecipZ[height]) >> 16);
+    sOam[slot][0] = (u16) (((sy - box) & 0xFF) | 0x0300);
+    sOam[slot][1] = (u16) (((sx - box) & 0x1FF) | (slot << 9) | ((box == 32 ? 2 : 1) << 14));
+    sOam[slot][2] = (u16) (tile | (bank << 12));
+}
+#endif
 
 /* ---- trees ---- */
 #define MAX_TREES 32
@@ -205,6 +262,17 @@ static s32 art_pixel(s32 kind, s32 d, s32 x, s32 y) {
 void actors_init(void) {
     volatile u16 *tiles = OBJ_VRAM_BITMAP;
     s32 kind, k, x, y, i, tile = TILE_FIRST;
+#ifdef DEMO_ENEMY_ART
+    for (i = 0; i < 15; i++) PAL_OBJ[ENEMY_BANK * 16 + 1 + i] = gImpEnemyPal[i];
+    for (i = 0; i < OAM_COUNT + 2; i++) sEnemyLoaded[i] = NULL;
+    for (y = 0; y < 16; y++) {
+        for (x = 0; x < 16; x += 4) {
+            u16 v = 0;
+            for (i = 0; i < 4; i++) v |= (u16) (art_pixel(2, 16, x + i, y) << (4 * i));
+            tiles[(EXPLOSION_TILE - 512 + (y >> 3) * 2 + (x >> 3)) * 16 + (y & 7) * 2 + ((x & 4) >> 2)] = v;
+        }
+    }
+#else
     for (kind = 0; kind < NUM_KINDS; kind++) {
         for (k = 0; k < NUM_ART; k++) {
             s32 d = kSizes[k], box = d <= 8 ? 8 : 16, w = box / 8, off = (box - d) / 2;
@@ -223,6 +291,7 @@ void actors_init(void) {
             tile += w * w;
         }
     }
+#endif
     PAL_OBJ[11] = RGB15(150, 82, 40);   /* brown */
     PAL_OBJ[12] = RGB15(232, 196, 140); /* tan */
     PAL_OBJ[13] = RGB15(36, 36, 44);    /* black */
@@ -235,6 +304,9 @@ void actors_init(void) {
 void actors_hide(void) {
     s32 i;
     for (i = 0; i < OAM_COUNT; i++) sOam[i][0] = 0x0200;
+#ifdef DEMO_ENEMY_ART
+    for (i = 0; i < OAM_COUNT; i++) sEnemyPending[i] = NULL;
+#endif
     for (i = 0; i < TREE_NEAR_COUNT + TREE_FAR_COUNT; i++) sTreeOam[i][0] = 0x0200;
 }
 
@@ -288,6 +360,9 @@ static void trees_draw(const struct RCamera *cam, s32 farDist) {
 void actors_draw(const struct RCamera *cam, s32 farDist) {
     s32 sinY = qsin(cam->yaw), cosY = qcos(cam->yaw), sinP = qsin(cam->pitch), cosP = qcos(cam->pitch);
     s32 i, n = 0;
+#ifdef DEMO_ENEMY_ART
+    s32 nearCount = 0;
+#endif
     for (i = 0; i < OBJECT_POOL_CAPACITY && n < OAM_COUNT; i++) {
         struct Object *o = &gObjectPool[i];
         s32 kind, model, vx, vy, vz, zf, cx, cy, cz, diam, sx, sy, k, size;
@@ -302,6 +377,12 @@ void actors_draw(const struct RCamera *cam, s32 farDist) {
         size = (s32) (kWorldSize[kind] * o->header.gfx.scale[1]);
         vx = (s32) o->header.gfx.pos[0] - cam->x;
         vy = (s32) o->header.gfx.pos[1] + kCenterY[kind] - cam->y;
+#ifdef DEMO_ENEMY_ART
+        if (kind < 2) {
+            size = (s32) (gImpEnemySize[kind] * o->header.gfx.scale[1]);
+            vy = (s32) (o->header.gfx.pos[1] + gImpEnemyCenter[kind] * o->header.gfx.scale[1]) - cam->y;
+        }
+#endif
         vz = (s32) o->header.gfx.pos[2] - cam->z;
         if (vx > farDist || vx < -farDist || vz > farDist || vz < -farDist) continue;
         zf = -((vx * sinY + vz * cosY) >> 14);
@@ -312,6 +393,10 @@ void actors_draw(const struct RCamera *cam, s32 farDist) {
         sx = 120 + PERSP(cx, cz);
         sy = 80 - PERSP(cy, cz);
         diam = PERSP(size, cz);
+#ifdef DEMO_ENEMY_ART
+        if (sx < -32 || sx > 272 || sy < -32 || sy > 192 || diam < 2) continue;
+        enemy_sprite(o, kind, n, sx, sy, cz, diam, cam->yaw, &nearCount);
+#else
         if (sx < -16 || sx > 256 || sy < -16 || sy > 176 || diam < 2) continue;
         for (k = 0; k < NUM_SIZES - 1 && kSizes[k + 1] <= diam; k++) {}
         if (k < NUM_ART) {
@@ -328,15 +413,34 @@ void actors_draw(const struct RCamera *cam, s32 farDist) {
             sOam[n][1] = (u16) ((sx & 0x1FF) | ((MTX_FIRST + k - NUM_ART) << 9) | (1 << 14));
             sOam[n][2] = sTile[kind][NUM_ART - 1];
         }
+#endif
         n++;
     }
-    for (; n < OAM_COUNT; n++) sOam[n][0] = 0x0200;
+    for (; n < OAM_COUNT; n++) {
+        sOam[n][0] = 0x0200;
+#ifdef DEMO_ENEMY_ART
+        sEnemyPending[n] = NULL;
+#endif
+    }
     trees_draw(cam, farDist);
 }
 
 void actors_commit(void) {
     s32 i;
     for (i = 0; i < OAM_COUNT; i++) {
+#ifdef DEMO_ENEMY_ART
+        const u16 *source = sEnemyPending[i];
+        if (source != NULL && sEnemyLoaded[sEnemyCache[i]] != source) {
+            volatile u16 *dest = OBJ_VRAM_BITMAP + ((sOam[i][2] & 0x3FF) - 512) * 16;
+            s32 k, words = sEnemyCache[i] >= OAM_COUNT ? 256 : 64;
+            for (k = 0; k < words; k++) dest[k] = source[k];
+            sEnemyLoaded[sEnemyCache[i]] = source;
+        }
+        OAM[i * 16 + 3] = sEnemyPA[i];
+        OAM[i * 16 + 7] = 0;
+        OAM[i * 16 + 11] = 0;
+        OAM[i * 16 + 15] = sEnemyPD[i];
+#endif
         OAM[(OAM_FIRST + i) * 4 + 0] = sOam[i][0];
         OAM[(OAM_FIRST + i) * 4 + 1] = sOam[i][1];
         OAM[(OAM_FIRST + i) * 4 + 2] = sOam[i][2];
@@ -347,6 +451,7 @@ void actors_commit(void) {
         OAM[at * 4 + 1] = sTreeOam[i][1];
         OAM[at * 4 + 2] = sTreeOam[i][2];
     }
+#ifndef DEMO_ENEMY_ART
     for (i = NUM_ART; i < NUM_SIZES; i++) {
         u16 p = (u16) (16 * 256 / kSizes[i]);
         s32 m = MTX_FIRST + i - NUM_ART;
@@ -355,4 +460,5 @@ void actors_commit(void) {
         OAM[m * 16 + 11] = 0;
         OAM[m * 16 + 15] = p;
     }
+#endif
 }

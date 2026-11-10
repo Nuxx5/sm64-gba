@@ -764,6 +764,8 @@ def main():
     meter = palettize(power_meter(assets))
     write_sprite_c(os.path.join(args.out, "sprite_art.c"), coin, tree, meter, "SM64 %s (%s)" % (ver.upper(), sha[:12]))
     print("wrote %s" % os.path.join(args.out, "sprite_art.c"))
+    from bake_enemies import bake
+    bake(assets, args.decomp, args.out)
     import n64audio
     sound = n64audio.Sound(rom, ver, args.decomp)
     songs = convert_music(sound)
