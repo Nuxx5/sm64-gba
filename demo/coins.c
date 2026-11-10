@@ -28,6 +28,8 @@
 extern const MacroObject bob_seg7_macro_objs[]; /* src/obj/objects.c */
 
 extern const s16 gSinQ14[4096];
+extern const u32 gRecipZ[16384]; /* 2^24 / z (render tables): no divisions per sprite */
+#define PERSP(v, z) ((s32) (((s64) (v) * FOCAL * gRecipZ[(z) > 16383 ? 16383 : (z)]) >> 24))
 
 /* Per level (same order as gHarnessLevels): macro list, or NULL for none yet. */
 static const MacroObject *const kLevelMacros[] = { bob_seg7_macro_objs, NULL, NULL, NULL };
@@ -258,9 +260,9 @@ void coins_draw(const struct RCamera *cam, s32 farDist) {
         cz = (zf * cosP - vy * sinP) >> 14;
         cy = (zf * sinP + vy * cosP) >> 14;
         if (cz < 64 || cz > farDist) continue;
-        sx = 120 + cx * FOCAL / cz;
-        sy = 80 - cy * FOCAL / cz;
-        diam = (c->red ? 70 : 64) * FOCAL / cz;
+        sx = 120 + PERSP(cx, cz);
+        sy = 80 - PERSP(cy, cz);
+        diam = PERSP((c->red ? 70 : 64), cz);
         if (sx < -16 || sx > 256 || sy < -16 || sy > 176 || diam < 2) continue;
         for (k = 0; k < NUM_SIZES - 1 && kSizes[k + 1] <= diam; k++) {}
         if (k < NUM_ART) {

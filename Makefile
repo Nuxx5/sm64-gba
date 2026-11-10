@@ -62,7 +62,7 @@ ARM_OBJS  := $(addprefix build/arm/,$(notdir $(DECOMP_SRCS:.c=.o) $(OUR_SRCS:.c=
 
 vpath %.c $(SM64)/src/game $(SM64)/src/engine src build
 
-.PHONY: all fetch test profile controls gba gba-test opt-test gba-opt-test gba-prof props props-arm equiv equiv-arm gba-pcprof demo demo-check demo-video bench bench-check bench-report dirty-check skeleton-check render-check import unimport import-check clean inputs
+.PHONY: sqrtf-check all fetch test profile controls gba gba-test opt-test gba-opt-test gba-prof props props-arm equiv equiv-arm gba-pcprof demo demo-check demo-video bench bench-check bench-report dirty-check skeleton-check render-check import unimport import-check clean inputs
 .SECONDARY:
 
 all: build/host/harness build/arm/harness
@@ -427,7 +427,7 @@ DEMO_CORE := $(filter-out build/armopt/harness_opt.o build/arm/stubs.o build/arm
              build/arm/mario_step.o
 DEMO_OBJS := build/demo/demo_main.o build/demo/render_build.o build/demo/render_iw.o \
              build/demo/hud.o build/demo/irq.o build/demo/render_tables.o build/demo/stubs.o \
-             build/demo/mannequin.o build/demo/skeleton.o build/demo/coins.o build/demo/actors.o build/demo/sfx.o
+             build/demo/mannequin.o build/demo/skeleton.o build/demo/coins.o build/demo/actors.o build/demo/sfx.o build/demo/sqrtf_exact.o
 DEMO_CFLAGS := -O2 -w -fno-strict-aliasing -Idemo
 
 # Imported assets (make import ROM=...): build/import/import_data.c, made from
@@ -444,7 +444,7 @@ $(shell mkdir -p build/demo; [ -f $(DEMO_MODE_FILE) ] || { rm -f build/demo/mode
 ifneq ($(IMPORT_C),)
 DEMO_OBJS += build/demo/import_data.o
 endif
-DEMO_LDWRAP := $(OPT_LDWRAP) -Wl,--wrap=alloc_surface_pools
+DEMO_LDWRAP := $(OPT_LDWRAP) -Wl,--wrap=alloc_surface_pools -Wl,--wrap=clear_dynamic_surfaces -Wl,--wrap=sqrtf
 
 build/demo:
 	mkdir -p $@
@@ -499,6 +499,17 @@ endif
 
 build/demo/coins.o: demo/coins.c demo/coins.h demo/sfx.h demo/render.h demo/gba.h $(DEMO_MODE_FILE) | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(CORE_CFLAGS) $(SPRITE_ART_DEF) -Idemo -c $< -o $@
+
+# Correctly rounded sqrtf without the bit loop (src/fast): ARM, in IWRAM.
+# make sqrtf-check compares it with the host's IEEE sqrtf on all 2^32 inputs.
+build/demo/sqrtf_exact.o: src/fast/sqrtf_exact.c | build/demo
+	$(ARM_CC) $(ARM_MODE) -O2 -c $< -o $@
+
+build/sqrtf_check: src/test/sqrtf_check.c src/fast/sqrtf_exact.c
+	$(HOST_CC) -O2 -msse2 -mfpmath=sse $^ -o $@ -lm
+
+sqrtf-check: build/sqrtf_check
+	./build/sqrtf_check
 
 build/demo/sfx.o: demo/sfx.c demo/sfx.h demo/gba.h $(OBJ_GEN) | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -Idemo -c $< -o $@

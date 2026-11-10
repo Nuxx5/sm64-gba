@@ -22,6 +22,8 @@
 #include "actors.h"
 
 extern const s16 gSinQ14[4096];
+extern const u32 gRecipZ[16384]; /* 2^24 / z (render tables): no divisions per sprite */
+#define PERSP(v, z) ((s32) (((s64) (v) * FOCAL * gRecipZ[(z) > 16383 ? 16383 : (z)]) >> 24))
 extern u8 gModelTags[256]; /* src/obj/obj_stubs.inc.c: a model's stand-in graph node */
 
 #define OAM_FIRST 36        /* after the HUD, before the coins (48..87): drawn over them */
@@ -246,8 +248,8 @@ static s32 project(const struct RCamera *cam, s32 farDist, s32 x, s32 y, s32 z, 
     *cz = (zf * cosP - vy * sinP) >> 14;
     cy = (zf * sinP + vy * cosP) >> 14;
     if (*cz < 64 || *cz > farDist) return 0;
-    *sx = 120 + cx * FOCAL / *cz;
-    *sy = 80 - cy * FOCAL / *cz;
+    *sx = 120 + PERSP(cx, *cz);
+    *sy = 80 - PERSP(cy, *cz);
     return 1;
 }
 
@@ -262,7 +264,7 @@ static void trees_draw(const struct RCamera *cam, s32 farDist) {
         if (!project(cam, farDist, sTrees[i][0], sTrees[i][1] + TREE_HEIGHT / 2, sTrees[i][2], &sx, &sy, &cz)) {
             continue;
         }
-        diam = TREE_HEIGHT * FOCAL / cz;
+        diam = PERSP(TREE_HEIGHT, cz);
         if (diam < 4 || sx < -64 || sx > 304 || sy < -64 || sy > 224) continue;
         for (k = 0; k < NUM_TREE_SIZES - 1 && kTreeSizes[k + 1] <= diam; k++) {}
         if (cz < marioZ) {
@@ -307,9 +309,9 @@ void actors_draw(const struct RCamera *cam, s32 farDist) {
         cz = (zf * cosP - vy * sinP) >> 14;
         cy = (zf * sinP + vy * cosP) >> 14;
         if (cz < 64 || cz > farDist) continue;
-        sx = 120 + cx * FOCAL / cz;
-        sy = 80 - cy * FOCAL / cz;
-        diam = size * FOCAL / cz;
+        sx = 120 + PERSP(cx, cz);
+        sy = 80 - PERSP(cy, cz);
+        diam = PERSP(size, cz);
         if (sx < -16 || sx > 256 || sy < -16 || sy > 176 || diam < 2) continue;
         for (k = 0; k < NUM_SIZES - 1 && kSizes[k + 1] <= diam; k++) {}
         if (k < NUM_ART) {

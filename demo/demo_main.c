@@ -62,7 +62,26 @@ extern struct SurfaceNode *sSurfaceNodePool;
 extern s16 sSurfacePoolSize;
 void reset_red_coins_collected(void);
 
+/* The game clears the dynamic-surface grid (256 cells x 3 lists) every frame;
+ * none of the ported objects has collision surfaces, so it's almost always
+ * empty already. Skip the clear when nothing was added since the last one:
+ * every insertion allocates a node past the static ones, so equal counts mean
+ * an empty grid (a level load forces one real clear). Same state either way. */
+void __real_clear_dynamic_surfaces(void);
+static s32 sDynamicGridDirty = 1;
+
+void __wrap_clear_dynamic_surfaces(void) {
+    if (!(gTimeStopState & TIME_STOP_ACTIVE)) {
+        if (sDynamicGridDirty || gSurfacesAllocated != gNumStaticSurfaces
+            || gSurfaceNodesAllocated != gNumStaticSurfaceNodes) {
+            __real_clear_dynamic_surfaces();
+            sDynamicGridDirty = 0;
+        }
+    }
+}
+
 void __wrap_alloc_surface_pools(void) {
+    sDynamicGridDirty = 1;
     sSurfacePoolSize = DEMO_MAX_SURFACES;
     sSurfaceNodePool = main_pool_alloc(DEMO_MAX_NODES * sizeof(struct SurfaceNode), MEMORY_POOL_LEFT);
     sSurfacePool = main_pool_alloc(DEMO_MAX_SURFACES * sizeof(struct Surface), MEMORY_POOL_LEFT);
