@@ -6,7 +6,7 @@
  * spawn_coin_in_formation() and bhv_coin_formation_spawn_loop()'s floor snap.
  *
  * With `make import ROM=...` they use the game's own coin art, from your ROM
- * (build/import/coin_art.c: the 4 spin textures, pre-scaled); without it, a
+ * (build/import/sprite_art.c: the 4 spin textures, pre-scaled); without it, a
  * drawn stand-in that spins the same way.
  *
  * Coins don't touch Mario's physics (in the game a coin only heals him), so
@@ -59,8 +59,8 @@ static const u8 kSizes[NUM_SIZES] = { 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 30 
 static u16 sTile[2][4][NUM_ART]; /* first tile of each sprite: [red][spin frame][size] */
 static u32 sTick;
 
-#ifdef DEMO_COIN_ART
-extern const u8 gImpCoinArt[4][846]; /* build/import/coin_art.c */
+#ifdef DEMO_SPRITE_ART
+extern const u8 gImpCoinArt[4][846]; /* build/import/sprite_art.c */
 #endif
 
 s32 gCoinCount, gRedCoinCount, gRedCoinTotal;
@@ -186,7 +186,7 @@ void coins_update(const f32 *pos) {
 
 /* Shade 0 (transparent) or 1..SHADES of pixel (x, y) of spin frame f at size d. */
 static s32 art_pixel(s32 f, s32 k, s32 x, s32 y) {
-#ifdef DEMO_COIN_ART
+#ifdef DEMO_SPRITE_ART
     s32 i, at = 0;
     for (i = 0; i < k; i++) at += kSizes[i] * kSizes[i];
     return gImpCoinArt[f][at + y * kSizes[k] + x];

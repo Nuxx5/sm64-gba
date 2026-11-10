@@ -88,7 +88,11 @@ static u16 sOam[OAM_COUNT][3];
 #define TREE_FAR_FIRST 113  /* 113..127: behind him */
 #define TREE_FAR_COUNT 15
 #define TREE_BANK 13        /* palette bank (the mannequin's are 1..12) */
+#ifdef DEMO_SPRITE_ART
+#define TREE_HEIGHT 809     /* the game's tree quad: y -9..800 */
+#else
 #define TREE_HEIGHT 600     /* world units (its pole hitbox is 500 tall) */
+#endif
 #define NUM_TREE_SIZES 8
 static const u8 kTreeSizes[NUM_TREE_SIZES] = { 6, 8, 12, 16, 24, 32, 48, 64 };
 static u16 sTreeTile[NUM_TREE_SIZES];
@@ -96,7 +100,16 @@ static s16 sTrees[MAX_TREES][3];
 static s32 sNumTrees;
 static u16 sTreeOam[TREE_NEAR_COUNT + TREE_FAR_COUNT][3];
 
-/* 64x64 design: a round crown, lit from the upper left, on a trunk.
+#ifdef DEMO_SPRITE_ART
+/* the game's bubbly tree, from your ROM (build/import/sprite_art.c) */
+extern const u16 gImpTreePal[15];
+extern const u8 gImpTreeArt[64 * 64];
+
+static s32 tree_pixel(s32 u, s32 v) {
+    return gImpTreeArt[v * 64 + u];
+}
+#else
+/* 64x64 stand-in: a round crown, lit from the upper left, on a trunk.
  * Colors: 1..3 greens (dark to light), 4..5 trunk. */
 static s32 tree_pixel(s32 u, s32 v) {
     s32 dx = u - 32, dy = v - 25, dd = dx * dx * 100 / (27 * 27) + dy * dy * 100 / (24 * 24);
@@ -108,6 +121,7 @@ static s32 tree_pixel(s32 u, s32 v) {
     if (u >= 28 && u < 37 && v >= 44 && v < 63) return u < 31 ? 4 : 5;
     return 0;
 }
+#endif
 
 static void trees_init(void) {
     volatile u16 *tiles = OBJ_VRAM_BITMAP;
@@ -131,11 +145,15 @@ static void trees_init(void) {
         }
         tile += w * w;
     }
+#ifdef DEMO_SPRITE_ART
+    for (i = 0; i < 15; i++) PAL_OBJ[TREE_BANK * 16 + 1 + i] = gImpTreePal[i];
+#else
     PAL_OBJ[TREE_BANK * 16 + 1] = RGB15(24, 96, 32);
     PAL_OBJ[TREE_BANK * 16 + 2] = RGB15(40, 150, 48);
     PAL_OBJ[TREE_BANK * 16 + 3] = RGB15(110, 200, 80);
     PAL_OBJ[TREE_BANK * 16 + 4] = RGB15(130, 90, 50);
     PAL_OBJ[TREE_BANK * 16 + 5] = RGB15(86, 56, 32);
+#endif
 }
 
 /* After a level loads: the trees the terrain spawned (they don't run). */

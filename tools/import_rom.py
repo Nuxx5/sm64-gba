@@ -12,8 +12,9 @@ and converts what the demo needs into build/import/import_data.c.
   assets.json (MIO0 decompression and N64 texture decoding are done here, so
   no decomp tools need to be built).
 - Nothing from the ROM is copied as is: textures are reduced to one average
-  color per triangle, skyboxes to a 16-step gradient, and the coin's four
-  spin textures to small sprites in 4 shades (build/import/coin_art.c).
+  color per triangle, skyboxes to a 16-step gradient, and the sprites
+  (build/import/sprite_art.c) to small images in 15 colors or fewer: the
+  coin's four spin textures, the bubbly tree, and the power meter.
 
 The output is derived from your ROM: keep it, and the demo ROM built from it,
 to yourself.
@@ -465,16 +466,140 @@ def convert_coin(textures):
     return [[coin_sprite(t, s) for s in COIN_SIZES] for t in textures]
 
 
-def write_coin_c(path, frames, info):
+# --- tree and power meter ---------------------------------------------------
+
+def sample(tex, u, v):
+    """Texel (u, v) of a decoded texture, clamped like G_TX_CLAMP."""
+    w, h, px = tex
+    u = min(w - 1, max(0, int(math.floor(u))))
+    v = min(h - 1, max(0, int(math.floor(v))))
+    return px[v * w + u]
+
+
+def raster_tri(tri, x, y):
+    """(u, v) in texels at world (x, y) if inside the triangle, else None.
+    tri: 3 vertices (x, y, s, t), s and t in the N64's 1/32 texel units."""
+    (x0, y0, s0, t0), (x1, y1, s1, t1), (x2, y2, s2, t2) = tri
+    d = (y1 - y2) * (x0 - x2) + (x2 - x1) * (y0 - y2)
+    a = ((y1 - y2) * (x - x2) + (x2 - x1) * (y - y2)) / d
+    b = ((y2 - y0) * (x - x2) + (x0 - x2) * (y - y2)) / d
+    c = 1 - a - b
+    if min(a, b, c) < 0:
+        return None
+    return (a * s0 + b * s1 + c * s2) / 32.0, (a * t0 + b * t1 + c * t2) / 32.0
+
+
+def render_quads(parts, x0, y1, scale, w, h, ss=4):
+    """Render textured triangles (as the game's display list draws them) into a
+    w x h RGBA image: pixel (px, py) covers world x0 + px*scale, y1 - py*scale.
+    parts: [(texture, [tri, ...])], later parts drawn over earlier ones."""
+    out = []
+    for py in range(h):
+        for px in range(w):
+            acc, alpha = [0.0, 0.0, 0.0], 0.0
+            for sy in range(ss):
+                for sx in range(ss):
+                    x = x0 + (px + (sx + 0.5) / ss) * scale
+                    y = y1 - (py + (sy + 0.5) / ss) * scale
+                    col = None
+                    for tex, tris in parts:
+                        for tri in tris:
+                            uv = raster_tri(tri, x, y)
+                            if uv is not None:
+                                c = sample(tex, *uv)
+                                if c[3] >= 128:
+                                    col = c
+                    if col is not None:
+                        for k in range(3):
+                            acc[k] += col[k]
+                        alpha += 1
+            n = ss * ss
+            if alpha >= n / 2:
+                out.append((acc[0] / alpha, acc[1] / alpha, acc[2] / alpha, 255))
+            else:
+                out.append((0, 0, 0, 0))
+    return out
+
+
+def quad(x0, y0, x1, y1, s0, t0, s1, t1):
+    """Two triangles of an axis-aligned quad, (x0, y0) bottom left (y up)."""
+    a, b, c, d = (x0, y0, s0, t0), (x1, y0, s1, t0), (x1, y1, s1, t1), (x0, y1, s0, t1)
+    return [(a, b, c), (a, c, d)]
+
+
+def bubbly_tree(assets):
+    """actors/tree: tree_seg3_dl_0302FEE8's two triangles, left and right side
+    textures, world x -356..358, y -9..800. 64 px tall, centered."""
+    left = assets.texture("actors/tree/tree_left_side.rgba16.png")
+    right = assets.texture("actors/tree/tree_right_side.rgba16.png")
+    parts = [(left, [((-356, -9, -796, 2012), (0, -9, 990, 2012), (0, 800, 990, -712))]),
+             (right, [((0, -9, 0, 2012), (358, -9, 1756, 2012), (0, 800, 0, -712))])]
+    scale = 809 / 64.0
+    return render_quads(parts, -32 * scale, 800, scale, 64, 64)
+
+
+METER_TEXTURES = ["one_segment", "two_segments", "three_segments", "four_segments",
+                  "five_segments", "six_segments", "seven_segments", "full"]
+
+
+def power_meter(assets):
+    """actors/power_meter: the base (left and right halves, 64x64 around the
+    center) with the health segments for 0..8 wedges over it (32x32 at x
+    -16..15, y -20..12), as dl_power_meter_base and the segments' list draw
+    them. 9 images, 32x32 (half size)."""
+    cn = "_cn" if assets.ver == "cn" else ""  # the iQue version's base says so in Chinese
+    base = [(assets.texture("actors/power_meter/power_meter_left_side%s.rgba16.png" % cn),
+             quad(-32, -32, 0, 32, 0, 2016, 992, 0)),
+            (assets.texture("actors/power_meter/power_meter_right_side%s.rgba16.png" % cn),
+             quad(0, -32, 32, 32, 1, 2016, 1024, 0))]
+    images = []
+    for n in range(9):
+        parts = list(base)
+        if n > 0:
+            seg = assets.texture("actors/power_meter/power_meter_%s.rgba16.png" % METER_TEXTURES[n - 1])
+            parts.append((seg, quad(-16, -20, 15, 12, 0, 992, 992, 0)))
+        images.append(render_quads(parts, -32, 32, 2.0, 32, 32, ss=2))
+    return images
+
+
+def palettize(images, k=15):
+    """Shared palette of up to k colors (index 0 = transparent) -> (pal, idx)."""
+    counts = {}
+    for img in images:
+        for p in img:
+            if p[3]:
+                key = tuple(int(c) >> 3 for c in p[:3])
+                counts[key] = counts.get(key, 0) + 1
+    keys = sorted(counts)
+    pts = [[c / 31.0 for c in key] for key in keys]
+    centers, assign = kmeans(pts, [counts[kk] for kk in keys], min(k, max(1, len(keys))))
+    lookup = {kk: assign[i] + 1 for i, kk in enumerate(keys)}
+    idx = [[lookup[tuple(int(c) >> 3 for c in p[:3])] if p[3] else 0 for p in img] for img in images]
+    return [rgb15(c) for c in centers], idx
+
+
+def write_sprite_c(path, coin, tree, meter, info):
     with open(path, "w") as f:
         f.write("/* Generated by tools/import_rom.py from %s. Derived from your ROM:\n"
-                " * do not distribute. The coin's 4 spin frames, pre-scaled to %s px,\n"
-                " * 0 = transparent, 1..%d = shade. */\n" % (info, "/".join(map(str, COIN_SIZES)), COIN_SHADES))
+                " * do not distribute. Sprites for the demo (demo/coins.c, actors.c, hud.c). */\n\n" % info)
+        f.write("/* The coin's 4 spin frames, pre-scaled to %s px, 0 = transparent,\n"
+                " * 1..%d = shade. */\n" % ("/".join(map(str, COIN_SIZES)), COIN_SHADES))
         n = sum(s * s for s in COIN_SIZES)
         f.write("const unsigned char gImpCoinArt[4][%d] = {\n" % n)
-        for fr in frames:
+        for fr in coin:
             flat = [v for sp in fr for v in sp]
             f.write("    {%s},\n" % ",".join(str(v) for v in flat))
+        f.write("};\n\n")
+        pal, idx = tree
+        f.write("/* The bubbly tree, 64x64, 0 = transparent, 1..15 = gImpTreePal. */\n")
+        f.write("const unsigned short gImpTreePal[15] = {%s};\n" % ", ".join("0x%04x" % c for c in pal + [0] * (15 - len(pal))))
+        f.write("const unsigned char gImpTreeArt[64 * 64] = {%s};\n\n" % ",".join(str(v) for v in idx[0]))
+        pal, idx = meter
+        f.write("/* The power meter with 0..8 wedges, 32x32, 0 = transparent, 1..15 = gImpMeterPal. */\n")
+        f.write("const unsigned short gImpMeterPal[15] = {%s};\n" % ", ".join("0x%04x" % c for c in pal + [0] * (15 - len(pal))))
+        f.write("const unsigned char gImpMeterArt[9][32 * 32] = {\n")
+        for im in idx:
+            f.write("    {%s},\n" % ",".join(str(v) for v in im))
         f.write("};\n")
 
 
@@ -535,8 +660,10 @@ def main():
     write_c(os.path.join(args.out, "import_data.c"), mario, levels, "SM64 %s (%s)" % (ver.upper(), sha[:12]))
     print("wrote %s" % os.path.join(args.out, "import_data.c"))
     coin = convert_coin([assets.texture(t) for t in COIN_TEXTURES])
-    write_coin_c(os.path.join(args.out, "coin_art.c"), coin, "SM64 %s (%s)" % (ver.upper(), sha[:12]))
-    print("wrote %s" % os.path.join(args.out, "coin_art.c"))
+    tree = palettize([bubbly_tree(assets)])
+    meter = palettize(power_meter(assets))
+    write_sprite_c(os.path.join(args.out, "sprite_art.c"), coin, tree, meter, "SM64 %s (%s)" % (ver.upper(), sha[:12]))
+    print("wrote %s" % os.path.join(args.out, "sprite_art.c"))
 
 
 if __name__ == "__main__":

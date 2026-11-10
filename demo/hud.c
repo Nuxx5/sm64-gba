@@ -161,6 +161,24 @@ static s32 octant(s32 dx, s32 dy) { /* 0..7, clockwise from 12 o'clock */
     return ax >= ay ? 6 : 7;
 }
 
+#ifdef DEMO_SPRITE_ART
+/* the game's power meter, from your ROM (build/import/sprite_art.c) */
+extern const u16 gImpMeterPal[15];
+extern const u8 gImpMeterArt[9][32 * 32];
+
+static void meter_draw(s32 wedges) {
+    volatile u16 *tiles = OBJ_VRAM_BITMAP + (METER_TILE - 512) * 16;
+    const u8 *art = gImpMeterArt[wedges];
+    s32 x, y;
+    for (y = 0; y < 32; y++) {
+        for (x = 0; x < 32; x += 4) {
+            const u8 *p = &art[y * 32 + x];
+            tiles[((y >> 3) * 4 + (x >> 3)) * 16 + (y & 7) * 2 + ((x & 4) >> 2)] =
+                (u16) (p[0] | (p[1] << 4) | (p[2] << 8) | (p[3] << 12));
+        }
+    }
+}
+#else
 static void meter_draw(s32 wedges) {
     volatile u16 *tiles = OBJ_VRAM_BITMAP + (METER_TILE - 512) * 16;
     s32 x, y, i;
@@ -182,8 +200,15 @@ static void meter_draw(s32 wedges) {
         }
     }
 }
+#endif
 
 void hud_meter_init(void) {
+#ifdef DEMO_SPRITE_ART
+    s32 i;
+    for (i = 0; i < 15; i++) PAL_OBJ[METER_BANK * 16 + 1 + i] = gImpMeterPal[i];
+    sMeterWedges = -1;
+    return;
+#endif
     PAL_OBJ[METER_BANK * 16 + 1] = RGB15(24, 24, 32);   /* rim */
     PAL_OBJ[METER_BANK * 16 + 2] = RGB15(90, 90, 100);  /* empty wedge */
     PAL_OBJ[METER_BANK * 16 + 3] = RGB15(232, 40, 32);  /* red */

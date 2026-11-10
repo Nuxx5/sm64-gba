@@ -75,7 +75,7 @@ make demo-check              # physics check + frame-rate tour, in mGBA
 make demo-video              # build/demo/preview.mp4 of the tour (needs ffmpeg)
 make skeleton-check          # animated figure vs the game's float matrix chain
 
-make import ROM=path/to/your/sm64.z64   # optional: real Mario model and level meshes
+make import ROM=path/to/your/sm64.z64   # optional: the game's art, see "With your ROM"
 make demo                                # rebuilds with the import (NOIMPORT=1: without)
 make import-check ROM=...                # the import's ROM reading vs the decomp's tools
 
@@ -85,6 +85,28 @@ make bench-check                         # the bench ROM in mGBA and NanoBoyAdva
 make bench-report SAV=sm64bench.sav      # a bench run from a GBA (see "Testing without a GBA")
 make dirty-check                         # the tour with random power-on memory
 ```
+
+### With your ROM
+
+The repository holds no Nintendo assets. `make import ROM=...` reads your own
+copy of the game (US, JP, EU, Shindou or iQue; its SHA-1 is checked) and
+writes `build/import/`, which is never committed; `make demo` then uses it,
+`NOIMPORT=1` builds without it, and `make unimport` deletes it.
+
+| On screen | Without a ROM | With your ROM |
+|---|---|---|
+| Mario | wooden mannequin (sprites) | his real low-poly model, animated |
+| Levels | collision mesh, flat colors | the real level meshes, colored from the textures |
+| Sky | gradient from a preset | gradient from the level's skybox |
+| Coins | drawn disc, spinning | the coin's 4 spin textures |
+| Trees | drawn tree | the bubbly tree's textures, as the game maps them |
+| Health meter | drawn 8-wedge meter | the power meter: base and segment textures |
+| Goombas, Bob-ombs, explosions | drawn sprites | drawn sprites (not imported yet) |
+| Sound effects | chiptune effects | chiptune effects (the game's samples need software mixing the demo has no room for) |
+
+Everything is reduced on the way: triangle colors, 16-step sky gradients,
+sprites in 15 colors or fewer. `make import-check ROM=...` checks every
+texture the import reads against the decomp's own extraction tools.
 
 The ROM isn't distributed: it contains code and data compiled from the
 decomp, so it's built locally, like the decomp itself.
@@ -347,7 +369,7 @@ deliberately; physics was never touched:
   level's macro object list in the decomp (`demo/coins.c`), with the game's
   formation offsets and floor snap. They spin like the game's (4 frames, 2 game
   frames each) and, after `make import ROM=...`, use the game's own coin art
-  from your ROM (`build/import/coin_art.c`, never committed); otherwise a
+  from your ROM (`build/import/sprite_art.c`, never committed); otherwise a
   drawn stand-in. Mario collects them (counter at the
   bottom left); they don't affect his physics, so the parity check is
   unchanged. They're plain hardware sprites, not depth tested, and drawn over

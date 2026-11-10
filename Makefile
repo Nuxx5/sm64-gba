@@ -435,7 +435,9 @@ DEMO_CFLAGS := -O2 -w -fno-strict-aliasing -Idemo
 # the demo draws the real Mario model and level meshes; otherwise the
 # collision mesh and the mannequin. A mode file forces a rebuild on switch.
 IMPORT_C := $(if $(NOIMPORT),,$(wildcard build/import/import_data.c))
-DEMO_MODE := $(if $(IMPORT_C),imported,plain)
+SPRITE_ART_C := $(if $(NOIMPORT),,$(wildcard build/import/sprite_art.c))
+SPRITE_ART_DEF := $(if $(SPRITE_ART_C),-DDEMO_SPRITE_ART,)
+DEMO_MODE := $(if $(IMPORT_C),imported,plain)$(if $(SPRITE_ART_C),-art,)
 DEMO_DEFS := $(if $(IMPORT_C),-DDEMO_IMPORTED,)
 DEMO_MODE_FILE := build/demo/mode.$(DEMO_MODE)
 $(shell mkdir -p build/demo; [ -f $(DEMO_MODE_FILE) ] || { rm -f build/demo/mode.*; touch $(DEMO_MODE_FILE); })
@@ -489,26 +491,26 @@ build/demo/skeleton.o: build/demo/skeleton.c
 build/demo/mannequin.o: demo/mannequin.c demo/mannequin.h demo/render.h demo/gba.h $(DEMO_MODE_FILE) $(ANIM_SRC) | build/demo
 	$(ARM_CC) $(ARM_MODE) $(CORE_CFLAGS) $(DEMO_DEFS) -Idemo -c $< -o $@
 
-# The coin art from the import (make import ROM=...), when present.
-COIN_ART_C := $(if $(NOIMPORT),,$(wildcard build/import/coin_art.c))
-ifneq ($(COIN_ART_C),)
-DEMO_OBJS += build/demo/coin_art.o
+# The sprite art from the import (make import ROM=...), when present: coins,
+# tree, power meter (build/import/sprite_art.c); without it, drawn stand-ins.
+ifneq ($(SPRITE_ART_C),)
+DEMO_OBJS += build/demo/sprite_art.o
 endif
 
 build/demo/coins.o: demo/coins.c demo/coins.h demo/sfx.h demo/render.h demo/gba.h $(DEMO_MODE_FILE) | build/demo
-	$(ARM_CC) $(ARM_ARCH) $(CORE_CFLAGS) $(if $(COIN_ART_C),-DDEMO_COIN_ART,) -Idemo -c $< -o $@
+	$(ARM_CC) $(ARM_ARCH) $(CORE_CFLAGS) $(SPRITE_ART_DEF) -Idemo -c $< -o $@
 
 build/demo/sfx.o: demo/sfx.c demo/sfx.h demo/gba.h $(OBJ_GEN) | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -Idemo -c $< -o $@
 
-build/demo/actors.o: demo/actors.c demo/actors.h demo/render.h demo/gba.h $(OBJ_GEN) | build/demo
-	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -Idemo -c $< -o $@
+build/demo/actors.o: demo/actors.c demo/actors.h demo/render.h demo/gba.h $(OBJ_GEN) $(DEMO_MODE_FILE) | build/demo
+	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) $(SPRITE_ART_DEF) -Idemo -c $< -o $@
 
-build/demo/coin_art.o: build/import/coin_art.c | build/demo
+build/demo/sprite_art.o: build/import/sprite_art.c | build/demo
 	$(ARM_CC) $(ARM_ARCH) -O2 -c $< -o $@
 
-build/demo/hud.o: demo/hud.c demo/hud.h demo/gba.h | build/demo
-	$(ARM_CC) $(ARM_ARCH) $(DEMO_CFLAGS) -c $< -o $@
+build/demo/hud.o: demo/hud.c demo/hud.h demo/gba.h $(DEMO_MODE_FILE) | build/demo
+	$(ARM_CC) $(ARM_ARCH) $(DEMO_CFLAGS) $(SPRITE_ART_DEF) -c $< -o $@
 
 build/demo/irq.o: demo/irq.s | build/demo
 	$(ARM_CC) -mcpu=arm7tdmi -c $< -o $@

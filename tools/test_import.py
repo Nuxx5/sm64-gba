@@ -121,6 +121,10 @@ def textures_used(decomp):
         if tex and not tex.startswith("?"):
             paths.add(tex)
     paths.update(ir.COIN_TEXTURES)
+    paths.update(["actors/tree/tree_left_side.rgba16.png", "actors/tree/tree_right_side.rgba16.png",
+                  "actors/power_meter/power_meter_left_side.rgba16.png",
+                  "actors/power_meter/power_meter_right_side.rgba16.png"])
+    paths.update("actors/power_meter/power_meter_%s.rgba16.png" % t for t in ir.METER_TEXTURES)
     return sorted(paths)
 
 
