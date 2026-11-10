@@ -8,6 +8,13 @@
  * player steps them from the VBlank interrupt, so the tempo doesn't depend
  * on the game's frame rate. A sound effect takes over a voice for its length
  * (demo/sfx.c marks it busy); the music restores the voice's note after.
+ *
+ * True build (DEMO_MUSIC_PCM, the default when the import has it): the song
+ * rendered offline with the ROM's own samples (tools/n64music.py render),
+ * 8-bit mono at 13379 Hz, streamed from cartridge ROM to Direct Sound A by
+ * DMA 1 on timer 0: no CPU beyond the VBlank hook, which counts the 224
+ * samples a frame takes and moves the DMA back to the loop point. Sound
+ * effects stay on the GB channels, so nothing is shared.
  */
 #include <PR/ultratypes.h>
 #include "gba.h"
@@ -30,7 +37,7 @@ extern volatile u32 gVBlankCount;
 u32 gSfxBusyUntil[4];          /* VBlank count until which a sound effect owns channel 1..4 */
 void (*volatile gVBlankHook)(void); /* called by the VBlank interrupt (demo/irq.s) */
 
-#ifdef DEMO_MUSIC
+#if defined(DEMO_MUSIC) && !defined(DEMO_MUSIC_PCM)
 /* 2048 - 131072 / f (square) and 2048 - 65536 / f (32-sample wave) for the
  * game's note numbers (0 = A0) */
 static const u16 kSquareFreq[128] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 44, 157, 263, 363, 457, 547, 631, 711, 786, 856, 923, 986, 1046, 1102, 1155, 1205, 1253, 1297, 1339, 1379, 1417, 1452, 1486, 1517, 1547, 1575, 1602, 1627, 1650, 1673, 1694, 1714, 1732, 1750, 1767, 1783, 1798, 1812, 1825, 1837, 1849, 1860, 1871, 1881, 1890, 1899, 1907, 1915, 1923, 1930, 1936, 1943, 1949, 1954, 1959, 1964, 1969, 1974, 1978, 1982, 1985, 1989, 1992, 1995, 1998, 2001, 2004, 2006, 2009, 2011, 2013, 2015, 2017, 2018, 2020, 2022, 2023, 2025, 2026, 2027, 2028, 2029, 2030, 2031, 2032, 2033, 2034, 2035, 2036, 2036, 2037, 2038, 2038, 2039, 2039, 2040, 2040, 2041, 2041, 2041, 2042, 2042, 2042, 2043, 2043, 2043, 2044, 2044, 2044, 2044, 2045, 2045, 2045};
@@ -171,6 +178,69 @@ void music_stop(void) {
     SND1_ENV = SND2_ENV = SND4_ENV = 0x0008;
     SND1_FREQ = SND2_FREQ = SND4_FREQ = 0x8000;
     SND3_SEL = 0;
+}
+#elif defined(DEMO_MUSIC_PCM)
+struct PcmSong {
+    u32 offset, length, loop; /* bytes into gImpPcm; length = loop end */
+};
+extern const s8 gImpPcm[];
+extern const struct PcmSong gImpPcmSongs[];
+extern const s8 gImpLevelSong[4];
+
+#define REG32(a) (*(volatile u32 *) (a))
+#define SNDCNT_H REG16(0x04000082)
+#define TM0_RELOAD REG16(0x04000100)
+#define TM0_CNT REG16(0x04000102)
+#define DMA1_SRC REG32(0x040000BC)
+#define DMA1_DST REG32(0x040000C0)
+#define DMA1_CNT_H REG16(0x040000C6)
+#define FIFO_A 0x040000A0
+#define SAMPLES_PER_FRAME 224 /* timer 0 at 1254 cycles: 280896 / 1254 */
+
+static const struct PcmSong *sSong;
+static u32 sPos;
+
+static void dma_from(u32 pos) {
+    DMA1_CNT_H = 0;
+    DMA1_SRC = (u32) &gImpPcm[sSong->offset + pos];
+    DMA1_DST = FIFO_A;
+    DMA1_CNT_H = 0xB640; /* on, FIFO timing, 32-bit, repeat, destination fixed */
+}
+
+/* Once per VBlank, from the interrupt. */
+static void music_vblank(void) {
+    if (sSong == 0) return;
+    sPos += SAMPLES_PER_FRAME;
+    if (sPos >= sSong->length) {
+        /* past the loop end: the padding after it is the loop start again,
+         * so jump back by one loop with the same overshoot */
+        sPos = sSong->loop + (sPos - sSong->length);
+        dma_from(sPos);
+    }
+}
+
+void music_init(void) {
+    gVBlankHook = music_vblank;
+}
+
+void music_start(s32 level) {
+    s32 song = (level >= 0 && level < 4) ? gImpLevelSong[level] : -1;
+    music_stop();
+    if (song < 0 || gImpPcmSongs[song].length == 0) return;
+    sSong = &gImpPcmSongs[song];
+    sPos = 0;
+    /* Direct Sound A: 100%, both sides, timer 0, FIFO reset; PSG at 100% */
+    SNDCNT_H = 0x0002 | 0x0004 | 0x0300 | 0x0800;
+    dma_from(0);
+    TM0_RELOAD = (u16) (65536 - 1254);
+    TM0_CNT = 0x0080;
+}
+
+void music_stop(void) {
+    sSong = 0;
+    TM0_CNT = 0;
+    DMA1_CNT_H = 0;
+    SNDCNT_H = 0x0002 | 0x0800; /* Direct Sound off, FIFO reset */
 }
 #else
 void music_init(void) {}

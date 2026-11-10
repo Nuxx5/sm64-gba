@@ -62,7 +62,7 @@ ARM_OBJS  := $(addprefix build/arm/,$(notdir $(DECOMP_SRCS:.c=.o) $(OUR_SRCS:.c=
 
 vpath %.c $(SM64)/src/game $(SM64)/src/engine src build
 
-.PHONY: sqrtf-check all fetch test profile controls gba gba-test opt-test gba-opt-test gba-prof props props-arm equiv equiv-arm gba-pcprof demo demo-check demo-video bench bench-check bench-report dirty-check skeleton-check render-check import unimport import-check clean inputs
+.PHONY: music-check sqrtf-check all fetch test profile controls gba gba-test opt-test gba-opt-test gba-prof props props-arm equiv equiv-arm gba-pcprof demo demo-check demo-video bench bench-check bench-report dirty-check skeleton-check render-check import unimport import-check clean inputs
 .SECONDARY:
 
 all: build/host/harness build/arm/harness
@@ -438,7 +438,7 @@ DEMO_CFLAGS := -O2 -w -fno-strict-aliasing -Idemo
 IMPORT_C := $(if $(NOIMPORT),,$(wildcard build/import/import_data.c))
 SPRITE_ART_C := $(if $(NOIMPORT),,$(wildcard build/import/sprite_art.c))
 SPRITE_ART_DEF := $(if $(SPRITE_ART_C),-DDEMO_SPRITE_ART,)
-DEMO_MODE := $(if $(IMPORT_C),imported,plain)$(if $(SPRITE_ART_C),-art,)$(if $(wildcard build/import/music_data.c),-music,)
+DEMO_MODE := $(if $(IMPORT_C),imported,plain)$(if $(SPRITE_ART_C),-art,)$(if $(wildcard build/import/music_data.c),-music$(if $(filter chip,$(MUSIC)),-chip,),)
 DEMO_DEFS := $(if $(IMPORT_C),-DDEMO_IMPORTED,)
 DEMO_MODE_FILE := build/demo/mode.$(DEMO_MODE)
 $(shell mkdir -p build/demo; [ -f $(DEMO_MODE_FILE) ] || { rm -f build/demo/mode.*; touch $(DEMO_MODE_FILE); })
@@ -509,17 +509,34 @@ build/demo/sqrtf_exact.o: src/fast/sqrtf_exact.c | build/demo
 build/sqrtf_check: src/test/sqrtf_check.c src/fast/sqrtf_exact.c
 	$(HOST_CC) -O2 -msse2 -mfpmath=sse $^ -o $@ -lm
 
+# The music import without a ROM: sequence player, VADPCM vs the SDK, arrangement, renderer.
+music-check:
+	$(PYTHON) tools/test_music.py --decomp $(SM64)
+
 sqrtf-check: build/sqrtf_check
 	./build/sqrtf_check
 
 # Music from the import (build/import/music_data.c), when present.
 MUSIC_C := $(if $(NOIMPORT),,$(wildcard build/import/music_data.c))
+# The true build (the songs rendered with your ROM's samples) when the import
+# made it; MUSIC=chip picks the chiptune arrangement instead.
+MUSIC_PCM := $(if $(filter chip,$(MUSIC)),,$(if $(MUSIC_C),$(wildcard build/import/music_pcm.bin),))
+MUSIC_DEFS := $(if $(MUSIC_C),-DDEMO_MUSIC,) $(if $(MUSIC_PCM),-DDEMO_MUSIC_PCM,)
 ifneq ($(MUSIC_C),)
 DEMO_OBJS += build/demo/music_data.o
 endif
+ifneq ($(MUSIC_PCM),)
+DEMO_OBJS += build/demo/music_pcm.o build/demo/music_pcm_info.o
+endif
+
+build/demo/music_pcm.o: demo/music_pcm.s build/import/music_pcm.bin | build/demo
+	$(ARM_CC) -mcpu=arm7tdmi -c $< -o $@
+
+build/demo/music_pcm_info.o: build/import/music_pcm.c | build/demo
+	$(ARM_CC) $(ARM_ARCH) -O2 -c $< -o $@
 
 build/demo/music.o: demo/music.c demo/music.h demo/gba.h $(DEMO_MODE_FILE) | build/demo
-	$(ARM_CC) $(ARM_ARCH) $(DEMO_CFLAGS) -I$(SM64)/include $(if $(MUSIC_C),-DDEMO_MUSIC,) -c $< -o $@
+	$(ARM_CC) $(ARM_ARCH) $(DEMO_CFLAGS) -I$(SM64)/include $(MUSIC_DEFS) -c $< -o $@
 
 build/demo/music_data.o: build/import/music_data.c | build/demo
 	$(ARM_CC) $(ARM_ARCH) -O2 -c $< -o $@

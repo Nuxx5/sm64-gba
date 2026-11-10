@@ -102,7 +102,8 @@ writes `build/import/`, which is never committed; `make demo` then uses it,
 | Trees | drawn tree | the bubbly tree's textures, as the game maps them |
 | Health meter | drawn 8-wedge meter | the power meter: base and segment textures |
 | Goombas, Bob-ombs, explosions | drawn sprites | drawn sprites (not imported yet) |
-| Sound effects | chiptune effects | chiptune effects (the game's samples need software mixing the demo has no room for) |
+| Music | none | the levels' music: rendered offline with the ROM's own instrument samples and streamed by DMA (`MUSIC=chip`: a 4-voice Game Boy arrangement instead) |
+| Sound effects | chiptune effects | chiptune effects |
 
 Everything is reduced on the way: triangle colors, 16-step sky gradients,
 sprites in 15 colors or fewer. `make import-check ROM=...` checks every
@@ -421,6 +422,18 @@ deliberately; physics was never touched:
   placing the sprites. Trees nearer the camera than Mario are drawn over him,
   the others behind him. Signposts and wooden posts are solid in the game,
   so they wait until they can be solid here too.
+- **Music (with your ROM only):** `make import` plays each level's SM64
+  sequence the way the decomp's `seqplayer.c` does (`tools/n64seq.py`),
+  decodes the ROM's VADPCM samples exactly as the N64 SDK does
+  (`tools/n64audio.py`), and renders the song with those samples and the
+  game's envelopes into 8-bit mono at 13,379 Hz (`tools/n64music.py`), which
+  `demo/music.c` streams from cartridge ROM to Direct Sound A by DMA (no CPU
+  cost but a VBlank hook; about 13 KB of ROM per second of music). It's an
+  offline approximation of the N64's mixer: no reverb, vibrato or stereo.
+  `make demo MUSIC=chip` builds a Game Boy-style arrangement on the 4 GB
+  voices instead, which shares them with the sound effects. `make
+  music-check` tests the sequence player, the decoder (against the SDK's
+  `vadpcm_dec`), the arrangement and the renderer without a ROM.
 - **Sound effects:** chiptune effects on the GBA's Game Boy sound channels
   (`demo/sfx.c`), triggered by the game's own sound calls with SM64's sound
   IDs: jumps, landings, footsteps, bonks, getting hurt, stomps, Goomba

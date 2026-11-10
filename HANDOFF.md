@@ -98,29 +98,16 @@ add the command in `n64seq.py` following `seqplayer.c`/`seq_decoder.py`),
 voice roles that pick the wrong channels (`_roles()` in `n64music.py`),
 levels too loud/quiet (`level` formula in `_mono()`), drum mapping.
 
-Not done yet:
+Done since: the true build (import writes `music_pcm.bin` + `music_pcm.c`;
+`demo/music.c` streams it with timer 0 + DMA 1, looping in the VBlank hook;
+default when present, `MUSIC=chip` for the chiptune) and `make music-check`
+(`tools/test_music.py`). Both builds were checked in mGBA with a synthetic
+bank (right pitch, 2.0 s loop, physics still bit-exact).
 
-1. **True build, GBA side** (renderer is written but untested:
-   `n64music.render()` mixes the notes with the ROM's samples into 8-bit mono
-   at 13379 Hz = 224 samples per frame, returns (bytes, loop_start) with 2 KB
-   of padding after the loop end). To do:
-   - import: call `render()` per song (banks: `sound.sequence_banks(name)`),
-     write `build/import/music_pcm.bin` + a small C file with each song's
-     offset, loop end (= length before padding) and loop start; include the
-     .bin with an asm file using `.incbin`.
-   - `demo/music.c` PCM backend (`DEMO_MUSIC_PCM`): Direct Sound A, timer 0
-     (TM0CNT_L = 65536 - 1254, TM0CNT_H = 0x80; timers 2/3 are the demo's
-     cycle counters, 0/1 are free), DMA1 from ROM to FIFO A (0x040000A0,
-     DMA1CNT_H = 0xB640), SOUNDCNT_H |= DS A 100%, both sides, timer 0, FIFO
-     reset. In the VBlank hook: pos += 224; past the loop end, restart DMA1 at
-     loop_start + overshoot. Stop on level load / game over (music_stop).
-   - Makefile: default to PCM when `music_pcm.bin` exists, `MUSIC=chip`
-     forces the chiptune. Add to `DEMO_MODE` so objects rebuild.
-   - test with a fake `Sound` (sine samples, a simple envelope) + the test
-     sequence; check the WAV (`--audio`) for pitch and loop.
-2. Tests in `tools/test_music.py` (sequence test above, VADPCM vs SDK) and a
-   `make music-check` target; README section on music.
-3. Ideas left from earlier: enemy sprites from the ROM (render the models to
+Still to do:
+
+1. Run it with a real ROM and fix what comes up (see above).
+2. Ideas left from earlier: enemy sprites from the ROM (render the models to
    sprites at import), King Bob-omb / Chain Chomp / signposts as solid
    objects, 1-ups, BoB full resolution (needs ~15-20k more cycles/frame).
 
