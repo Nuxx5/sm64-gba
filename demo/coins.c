@@ -23,6 +23,7 @@
 #include "gba.h"
 #include "render.h"
 #include "coins.h"
+#include "sfx.h"
 
 extern const MacroObject bob_seg7_macro_objs[]; /* src/obj/objects.c */
 
@@ -174,9 +175,11 @@ void coins_update(const f32 *pos) {
         c->taken = 1;
         if (c->red) {
             gRedCoinCount++;
+            sfx_coin(1);
             gCoinCount += 2;
         } else {
             gCoinCount++;
+            sfx_coin(0);
         }
     }
 }

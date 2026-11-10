@@ -237,7 +237,13 @@ void guMtxF2L(UNUSED float mf[4][4], UNUSED Mtx *m) {}
 
 /* ---------- audio ---------- */
 
+#ifdef DEMO_SOUND
+/* the demo plays the game's sound IDs as chiptune effects (demo/sfx.c) */
+void sfx_play(u32 soundBits, const struct Object *src);
+void play_sound(s32 soundBits, UNUSED f32 *pos) { sfx_play((u32) soundBits, NULL); }
+#else
 void play_sound(UNUSED s32 soundBits, UNUSED f32 *pos) {}
+#endif
 void stop_sound(UNUSED u32 soundBits, UNUSED f32 *pos) {}
 void play_music(UNUSED u8 player, UNUSED u16 seqArgs, UNUSED u16 fadeTimer) {}
 void play_course_clear(void) {}

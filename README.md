@@ -366,13 +366,19 @@ deliberately; physics was never touched:
   (`build/host/harness_obj`), Mario stays bit-identical on every frame, and
   `make demo-check` adds a run into a Goomba and a stomp (replayed without
   objects, the first one diverges at the hit, as it should). Drawn as sprite
-  stand-ins (`demo/actors.c`), not depth tested. Not reproduced: particles and
-  sound (stubbed), and animation steps for objects out of view (the game only
+  stand-ins (`demo/actors.c`), not depth tested. Not reproduced: particles, and animation steps for objects out of view (the game only
   advances animations it draws; here, all of them). Cost: Mario plus objects
   average 99k cycles a frame instead of 41k (18% of a 30 Hz frame, 38% at
   worst), so BoB renders one or two quality steps lower. No platforms, doors,
   King Bob-omb or Chain Chomp yet. Death planes and deaths respawn Mario at
   the level start.
+- **Sound effects:** chiptune effects on the GBA's Game Boy sound channels
+  (`demo/sfx.c`), triggered by the game's own sound calls with SM64's sound
+  IDs: jumps, landings, footsteps, bonks, getting hurt, stomps, Goomba
+  alerts, Bob-omb fuses and explosions, and coins. Object sounds fade with
+  distance. The sounds are made up, not the game's samples; there is no music.
+  They cost almost nothing (a few register writes per sound). `mgba_runner
+  --audio FILE` records the output as a WAV file.
 - **Memory:** the surface pools are sized for these four levels (frees ~70
   KB), and `mario_step.c` runs from ROM in the demo (its IWRAM is worth more
   as stack). The object pool holds 40 objects (24 KB; the game's 240 would be

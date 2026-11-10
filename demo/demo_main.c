@@ -27,6 +27,7 @@
 #include "mannequin.h"
 #include "coins.h"
 #include "actors.h"
+#include "sfx.h"
 #include "objects.h"
 #ifdef DEMO_IMPORTED
 #include "import.h"
@@ -319,6 +320,7 @@ static void load_level(s32 idx) {
 #endif
 
     show_loading(idx);
+    sfx_silence();
     objects_clear(); /* the terrain's special objects (trees, ...) spawn into the pool */
     load_area_terrain(0, (TerrainData *) lvl->collision, NULL, NULL);
     if (gSurfaceNodesAllocated > DEMO_MAX_NODES || gSurfacesAllocated > DEMO_MAX_SURFACES) {
@@ -602,6 +604,7 @@ int main(void) {
     mannequin_init();
     coins_init();
     actors_init();
+    sfx_init();
 
     /* VBlank interrupt for frame pacing */
     REG_IME = 0;
@@ -656,6 +659,7 @@ int main(void) {
         mario_frame(keys, pressed);
         check_respawn();
         coins_update(gMarioState->pos);
+        sfx_frame();
         t1 = cycles_now();
         camera_update(gMarioState, keys, &cam);
         player_from_mario(&player);

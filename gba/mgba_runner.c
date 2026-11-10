@@ -19,11 +19,13 @@
  *                     KEYS from A B L R S(start) E(select) < > ^ v
  *   --capture DIR K   write every K-th frame as DIR/NNNNNN.ppm
  *   --video-hash FILE one line per frame: FNV-1a hash of the picture
+ *   --audio FILE      record the sound output as a 32 kHz stereo WAV file
  *   --dirty SEED      fill memory with pseudo-random bytes before boot
  *   --sram FILE       the bench ROM: run until its record in save RAM is
  *                     complete (demo/bench.h), then write the save RAM to FILE
  */
 #include <mgba/core/core.h>
+#include <mgba/core/blip_buf.h>
 #include <mgba/core/config.h>
 #include <mgba/core/log.h>
 #include <mgba/core/timing.h>
@@ -257,6 +259,8 @@ int main(int argc, char **argv) {
     long captureEvery = 1;
     const char *sramPath = NULL;
     FILE *hashFile = NULL;
+    FILE *audioFile = NULL;
+    long audioSamples = 0;
     long dirtySeed = -1;
     int i;
 
@@ -278,6 +282,13 @@ int main(int argc, char **argv) {
                 fprintf(stderr, "mgba_runner: cannot write %s\n", argv[i]);
                 return 2;
             }
+        } else if (strcmp(argv[i], "--audio") == 0 && i + 1 < argc) {
+            audioFile = fopen(argv[++i], "wb");
+            if (audioFile == NULL) {
+                fprintf(stderr, "mgba_runner: cannot write %s\n", argv[i]);
+                return 1;
+            }
+            fwrite(calloc(44, 1), 1, 44, audioFile); /* header, written at the end */
         } else if (strcmp(argv[i], "--dirty") == 0 && i + 1 < argc) {
             dirtySeed = atol(argv[++i]);
         } else if (strcmp(argv[i], "--sram") == 0 && i + 1 < argc) {
@@ -297,6 +308,7 @@ int main(int argc, char **argv) {
     mCoreInitConfig(core, NULL);
     core->opts.skipBios = true;
     core->opts.useBios = false;
+    mCoreConfigSetDefaultIntValue(&core->config, "volume", 0x100); /* --audio */
     mCoreLoadConfig(core);
 
     core->desiredVideoDimensions(core, &width, &height);
@@ -308,6 +320,11 @@ int main(int argc, char **argv) {
         return 1;
     }
     core->reset(core);
+    if (audioFile != NULL) {
+        core->setAudioBufferSize(core, 4096);
+        blip_set_rates(core->getAudioChannel(core, 0), core->frequency(core), 32768);
+        blip_set_rates(core->getAudioChannel(core, 1), core->frequency(core), 32768);
+    }
     if (dirtySeed >= 0) {
         fill_dirty(core, (unsigned) dirtySeed);
     }
@@ -335,6 +352,15 @@ int main(int argc, char **argv) {
         }
         core->runFrame(core);
         sFrameCounter++;
+        if (audioFile != NULL) {
+            short buf[2 * 2048];
+            int n = blip_samples_avail(core->getAudioChannel(core, 0));
+            if (n > 2048) n = 2048;
+            blip_read_samples(core->getAudioChannel(core, 0), buf, n, 1);
+            blip_read_samples(core->getAudioChannel(core, 1), buf + 1, n, 1);
+            fwrite(buf, sizeof(short), (size_t) n * 2, audioFile);
+            audioSamples += n;
+        }
         if (captureDir != NULL && frames % captureEvery == 0) {
             write_ppm(captureDir, frames, video, width, height);
         }
@@ -365,6 +391,17 @@ int main(int argc, char **argv) {
     if (!sDone) {
         fprintf(stderr, "mgba_runner: ROM did not finish within %ld frames\n", maxFrames);
         return 3;
+    }
+    if (audioFile != NULL) {
+        /* RIFF/WAVE header: 16-bit stereo PCM at 32768 Hz */
+        unsigned char h[44] = "RIFF\0\0\0\0WAVEfmt \x10\0\0\0\x01\0\x02\0\0\x80\0\0\0\0\x02\0\x04\0\x10\0data";
+        uint32_t bytes = (uint32_t) audioSamples * 4, riff = bytes + 36;
+        memcpy(h + 4, &riff, 4);
+        memcpy(h + 40, &bytes, 4);
+        h[28] = 0x00; h[29] = 0x00; h[30] = 0x02; h[31] = 0x00; /* byte rate 131072 */
+        fseek(audioFile, 0, SEEK_SET);
+        fwrite(h, 1, 44, audioFile);
+        fclose(audioFile);
     }
     return 0;
 }

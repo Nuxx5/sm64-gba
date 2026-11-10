@@ -427,7 +427,7 @@ DEMO_CORE := $(filter-out build/armopt/harness_opt.o build/arm/stubs.o build/arm
              build/arm/mario_step.o
 DEMO_OBJS := build/demo/demo_main.o build/demo/render_build.o build/demo/render_iw.o \
              build/demo/hud.o build/demo/irq.o build/demo/render_tables.o build/demo/stubs.o \
-             build/demo/mannequin.o build/demo/skeleton.o build/demo/coins.o build/demo/actors.o
+             build/demo/mannequin.o build/demo/skeleton.o build/demo/coins.o build/demo/actors.o build/demo/sfx.o
 DEMO_CFLAGS := -O2 -w -fno-strict-aliasing -Idemo
 
 # Imported assets (make import ROM=...): build/import/import_data.c, made from
@@ -453,7 +453,7 @@ build/demo/render_tables.c: tools/gen_render_tables.py | build/demo
 build/demo/render_tables.o: build/demo/render_tables.c
 	$(ARM_CC) $(ARM_ARCH) -O2 -c $< -o $@
 
-build/demo/demo_main.o: demo/demo_main.c demo/coins.h demo/actors.h src/obj/objects.h $(OBJ_GEN) demo/render.h demo/hud.h demo/mannequin.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) $(ANIM_SRC) | build/demo
+build/demo/demo_main.o: demo/demo_main.c demo/sfx.h demo/coins.h demo/actors.h src/obj/objects.h $(OBJ_GEN) demo/render.h demo/hud.h demo/mannequin.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) $(ANIM_SRC) | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) $(DEMO_DEFS) -Idemo -c $< -o $@
 
 build/demo/render_build.o: demo/render_build.c demo/render.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) | build/demo
@@ -495,8 +495,11 @@ ifneq ($(COIN_ART_C),)
 DEMO_OBJS += build/demo/coin_art.o
 endif
 
-build/demo/coins.o: demo/coins.c demo/coins.h demo/render.h demo/gba.h $(DEMO_MODE_FILE) | build/demo
+build/demo/coins.o: demo/coins.c demo/coins.h demo/sfx.h demo/render.h demo/gba.h $(DEMO_MODE_FILE) | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(CORE_CFLAGS) $(if $(COIN_ART_C),-DDEMO_COIN_ART,) -Idemo -c $< -o $@
+
+build/demo/sfx.o: demo/sfx.c demo/sfx.h demo/gba.h $(OBJ_GEN) | build/demo
+	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -Idemo -c $< -o $@
 
 build/demo/actors.o: demo/actors.c demo/actors.h demo/render.h demo/gba.h $(OBJ_GEN) | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -Idemo -c $< -o $@
@@ -511,7 +514,7 @@ build/demo/irq.o: demo/irq.s | build/demo
 	$(ARM_CC) -mcpu=arm7tdmi -c $< -o $@
 
 build/demo/stubs.o: src/stubs.c src/obj/obj_stubs.inc.c $(OBJ_GEN) $(ANIM_SRC) | build/demo
-	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -DPOOL_BYTES=95488 -c $< -o $@
+	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -DPOOL_BYTES=95488 -DDEMO_SOUND -c $< -o $@
 
 # Objects (src/obj, tools/gen_objsrc.py): the decomp's object system in Thumb,
 # from ROM, and Mario's animation step built for it.

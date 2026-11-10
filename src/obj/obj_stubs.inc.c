@@ -124,9 +124,16 @@ void obj_set_speed_to_zero(void) {
 struct MemoryPool *mem_pool_init(UNUSED u32 size, UNUSED u32 side) { return NULL; }
 
 /* ---- sound ---- */
+#ifdef DEMO_SOUND
+/* the demo plays these (demo/sfx.c), faded by the object's distance */
+void cur_obj_play_sound_1(s32 soundMagic) { sfx_play((u32) soundMagic, gCurrentObject); }
+void cur_obj_play_sound_2(s32 soundMagic) { sfx_play((u32) soundMagic, gCurrentObject); }
+void create_sound_spawner(s32 soundMagic) { sfx_play((u32) soundMagic, gCurrentObject); }
+#else
 void cur_obj_play_sound_1(UNUSED s32 soundMagic) {}
 void cur_obj_play_sound_2(UNUSED s32 soundMagic) {}
 void create_sound_spawner(UNUSED s32 soundMagic) {}
+#endif
 void stop_sounds_from_source(UNUSED f32 *pos) {}
 void play_cap_music(UNUSED u16 seqArgs) {}
 void fadeout_level_music(UNUSED s16 fadeTimer) {}
