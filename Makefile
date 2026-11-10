@@ -253,7 +253,7 @@ build/armopt build/gbaopt:
 	mkdir -p $@
 
 build/armopt/%_iw.o: src/opt/%.c src/opt/collision_cache.h $(ANIM_SRC) | build/armopt
-	$(ARM_CC) $(ARM_MODE) $(CORE_CFLAGS) -I$(SM64)/src/engine -Isrc/opt -c $< -o $@
+	$(ARM_CC) $(ARM_MODE) $(CORE_CFLAGS) -I$(SM64)/src/engine -Isrc/opt -ffunction-sections -c $< -o $@
 
 build/armopt/%_iw.o: %.c $(ANIM_SRC) | build/armopt
 	$(ARM_CC) $(ARM_MODE) $(CORE_CFLAGS) -I$(SM64)/src/engine -c $< -o $@
@@ -387,10 +387,11 @@ gba-opt-test: build/host/harness $(OPT_GBA_ROMS) build/mgba_runner
 # The parity harness above stays object-free.
 OBJSRC := build/objsrc
 OBJ_GEN := $(OBJSRC)/g_object_list_processor.c $(OBJSRC)/g_object_helpers.c $(OBJSRC)/g_obj_behaviors.c \
-           $(OBJSRC)/g_obj_behaviors_2.c $(OBJSRC)/behavior_data_subset.c $(OBJSRC)/bhv_dummies_obj.c
-OBJ_DECOMP := behavior_script.c spawn_object.c object_collision.c interaction.c platform_displacement.c
+           $(OBJSRC)/g_obj_behaviors_2.c $(OBJSRC)/behavior_data_subset.c $(OBJSRC)/bhv_dummies_obj.c \
+           $(OBJSRC)/g_behavior_script.c $(OBJSRC)/g_object_collision.c $(OBJSRC)/g_atan2s.c
+OBJ_DECOMP := spawn_object.c interaction.c platform_displacement.c
 OBJ_OURS := objects.c obj_anims.c
-OBJ_CFLAGS := $(CORE_CFLAGS) -DHARNESS_OBJECTS -include $(OBJSRC)/object_list_processor.h -Isrc/obj
+OBJ_CFLAGS := $(CORE_CFLAGS) -DHARNESS_OBJECTS -include $(OBJSRC)/object_list_processor.h -Isrc/obj -I$(SM64)/src/engine
 OBJ_NAMES := $(notdir $(filter-out src/bhv_dummies.c,$(DECOMP_SRCS) $(OUR_SRCS)) $(OBJ_GEN) $(OBJ_DECOMP) $(OBJ_OURS))
 HOSTOBJ_OBJS := $(addprefix build/hostobj/,$(OBJ_NAMES:.c=.o)) \
                 build/hostobj/mario_anim_data.o build/host/platform_stdio.o build/host/sqrtf_host.o
@@ -444,7 +445,7 @@ $(shell mkdir -p build/demo; [ -f $(DEMO_MODE_FILE) ] || { rm -f build/demo/mode
 ifneq ($(IMPORT_C),)
 DEMO_OBJS += build/demo/import_data.o
 endif
-DEMO_LDWRAP := $(OPT_LDWRAP) -Wl,--wrap=alloc_surface_pools -Wl,--wrap=clear_dynamic_surfaces -Wl,--wrap=sqrtf
+DEMO_LDWRAP := $(OPT_LDWRAP) -Wl,--wrap=alloc_surface_pools -Wl,--wrap=clear_dynamic_surfaces -Wl,--wrap=sqrtf -Wl,--wrap=atan2s
 
 build/demo:
 	mkdir -p $@
@@ -539,7 +540,7 @@ build/demo/obj:
 	mkdir -p $@
 
 build/demo/obj/%.o: $(OBJSRC)/%.c $(OBJ_GEN) | build/demo/obj
-	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -c $< -o $@
+	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -DDEMO_IWRAM -c $< -o $@
 
 build/demo/obj/%.o: src/obj/%.c $(OBJ_GEN) | build/demo/obj
 	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) -c $< -o $@

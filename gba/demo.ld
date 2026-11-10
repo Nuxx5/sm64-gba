@@ -22,7 +22,14 @@ __sp_usr = 0x03007F00;
 SECTIONS {
     .text : {
         KEEP(*(.crt0))
-        *(EXCLUDE_FILE(*_iw.o *libgcc.a:_arm_addsubsf3.o *libgcc.a:_arm_muldivsf3.o *libgcc.a:_arm_cmpsf2.o *libgcc.a:_arm_fixsfsi.o *libgcc.a:_arm_unordsf2.o *libm.a:libm_a-ef_sqrt.o *libm.a:libm_a-wf_sqrt.o) .text EXCLUDE_FILE(*_iw.o *libgcc.a:_arm_addsubsf3.o *libgcc.a:_arm_muldivsf3.o *libgcc.a:_arm_cmpsf2.o *libgcc.a:_arm_fixsfsi.o *libgcc.a:_arm_unordsf2.o *libm.a:libm_a-ef_sqrt.o *libm.a:libm_a-wf_sqrt.o) .text.*)
+        *(EXCLUDE_FILE(*_iw.o *libgcc.a:_arm_addsubsf3.o *libgcc.a:_arm_muldivsf3.o *libgcc.a:_arm_cmpsf2.o *libgcc.a:_arm_fixsfsi.o *libgcc.a:_arm_unordsf2.o) .text EXCLUDE_FILE(*_iw.o *libgcc.a:_arm_addsubsf3.o *libgcc.a:_arm_muldivsf3.o *libgcc.a:_arm_cmpsf2.o *libgcc.a:_arm_fixsfsi.o *libgcc.a:_arm_unordsf2.o) .text.*)
+        /* never or rarely run: out of IWRAM, which holds the hot object code
+         * instead (tools/gen_objsrc.py IWRAM_FUNCS). libm's sqrtf is only the
+         * fallback of src/fast/sqrtf_exact.c (negative, infinite, NaN). */
+        *_iw.o(.text.debug_surface_list_info .text.unused_find_dynamic_floor)
+        *_iw.o(.text.unused_resolve_floor_or_ceil_collisions)
+        *libm.a:libm_a-ef_sqrt.o(.text .text.*)
+        *libm.a:libm_a-wf_sqrt.o(.text .text.*)
         *(.text_rom)
         *(.glue_7 .glue_7t .vfp11_veneer .v4_bx)
     } > rom
@@ -45,8 +52,6 @@ SECTIONS {
         *libgcc.a:_arm_cmpsf2.o(.text .text.*)
         *libgcc.a:_arm_fixsfsi.o(.text .text.*)
         *libgcc.a:_arm_unordsf2.o(.text .text.*)
-        *libm.a:libm_a-ef_sqrt.o(.text .text.*)
-        *libm.a:libm_a-wf_sqrt.o(.text .text.*)
         . = ALIGN(4);
         __iwram_end = .;
     } > iwram AT > rom

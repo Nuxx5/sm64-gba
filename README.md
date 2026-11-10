@@ -394,14 +394,18 @@ deliberately; physics was never touched:
   stand-ins (`demo/actors.c`), not depth tested. Not reproduced: particles, and animation steps for objects out of view (the game only
   advances animations it draws; here, all of them). Cost: Mario plus objects
   were 184k cycles a frame in BoB instead of 41k for Mario alone; three
-  changes that keep every result identical bring that to 155k (28% of a
+  changes that keep every result identical bring that to 136k (24% of a
   30 Hz frame): a correctly rounded `sqrtf` without the bit loop (ARM, IWRAM,
   checked against the host's IEEE sqrtf on all 2^32 inputs by
-  `make sqrtf-check`), skipping the per-frame clear of the dynamic-surface
-  grid when nothing was added to it, and no divisions in the sprite
-  projections. BoB holds 30 fps on 99.5% of the tour's frames, but still one
-  or two quality steps lower than without enemies: the rest is the game's
-  own float math per object per frame (distances, angles, floors, hitboxes). No platforms, doors,
+  `make sqrtf-check`); skipping the per-frame clear of the dynamic-surface
+  grid when nothing was added to it; the hottest object functions
+  (`cur_obj_update`, `detect_object_hitbox_overlap`, `dist_between_objects`,
+  `obj_angle_to_object`, `atan2s`, the coin pickup) compiled as ARM into
+  IWRAM, from the same source, with never-run code moved out to make room
+  (`gba/demo.ld`; the stack keeps 3.8 KB, peak use 1.9 KB); and no divisions
+  in the sprite projections. BoB holds 30 fps on 99.5% of the tour's frames,
+  one quality step below full: the rest is the game's own float math per
+  object per frame. No platforms, doors,
   King Bob-omb or Chain Chomp yet. Death planes and deaths respawn Mario at
   the level start, at the cost of a life.
 - **Lives and game over:** as in the game, Mario starts with 4 lives and

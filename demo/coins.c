@@ -163,6 +163,7 @@ void coins_load(s32 level) {
 
 /* Collection: the coin hitboxes (radius 100, height 64) against Mario's
  * (radius 37, height 160), as in the game's obj_collide_with(). */
+__attribute__((section(".iwram"), target("arm"), noinline)) /* every frame, every coin */
 void coins_update(const f32 *pos) {
     s32 i, mx = (s32) pos[0], my = (s32) pos[1], mz = (s32) pos[2];
     for (i = 0; i < sNumCoins; i++) {
