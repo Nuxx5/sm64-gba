@@ -4,6 +4,57 @@ Written for whoever continues this (another assistant or a person). Read
 `README.md` first for the project itself; this file covers what this branch
 added, how to check it, and what is half done.
 
+## Continuation: headless opening FMV (2026-11-11)
+
+The uploaded `Super Mario 64 Opening Cutscene Super Mario 3D All-Stars.mp4`
+is the source for the new movie, not a YouTube download or a new ROM capture.
+Keep working headless: user is at work and does not want images/videos posted.
+Source SHA-256 and crop are recorded in ignored `build/import/intro/manifest.json`.
+The clip is 30.046621 s with 29.931926 s of video; the final frame is held to
+preserve the complete audio. Detected black borders crop to 960x672 at 160,24;
+active picture proportions are retained within the 240x160 output.
+
+`make import-intro VIDEO=...` runs `tools/import_intro.py` with ffmpeg/Pillow.
+It stages conversion then replaces the import atomically, retaining the old
+working movie on failure. Generated palette, offsets, video/audio binaries,
+header, assembler blob and manifest all remain under ignored build/import.
+No media, generated assets or ROMs should enter Git. MP4 inputs are ignored.
+
+`demo/intro.c` plays only after confirmed New Game. The New Game SRAM record
+commits before playback; Continue skips the movie. A fresh Start press skips
+and stops DMA/timer cleanly; held title Start is consumed. `NOINTRO=1` and
+`NOIMPORT=1` omit the movie. Bench mode bypasses menu/movie as before.
+`demo/intro_codec.c` decodes bounded halfword literal/repeat/skip commands
+directly into the back VRAM page, with deltas against frame n-2. Both pages
+are cleared first. No video RAM buffer is allocated in EWRAM. Level music's
+VBlank hook is suspended during the movie and restored on every exit path;
+movie audio uses DMA1/timer0, signed 8-bit mono, 224 samples/VBlank exactly.
+
+The imported movie has 449 frames at 14.9319 fps, 30.07 s playback duration,
+11,689,046 compressed video bytes and 402,432 audio bytes including DMA padding.
+Sampled ROM: 18,500,280 bytes; chip ROM: 15,360,816 bytes; both fit 32 MiB.
+IWRAM end stays 0x030074B0, EWRAM end 0x0203DDE0 (same as title/save build).
+ZIP the ROM downloads to fit the Pages 10 MiB file-upload limit; users extract
+and run the .gba. Keep prior builds on the same private download Page.
+
+`make intro-check` checks native malformed/truncated streams, run/count
+boundaries, original synthetic video conversion, crop/aspect/audio behavior,
+failed-import recovery, and every real converted frame SHA-256 against the C
+decoder. `make intro-runtime-check` boots the real ROM headless: all 449
+frames must appear in order and meet four-VBlank deadlines, with source audio
+envelope correlation >0.9 and <=80 ms A/V offset; then tests skip, held Start,
+and Continue. Both music builds pass (zero late frames; ~10 ms A/V offset).
+Runner `--start-game` also skips intro automatically; standalone `--skip-intro`
+lets existing UI checks run quickly. The held-Start SRAM test now waits for
+actual gameplay before corrupting the latest of its two records.
+
+Final regression: sampled/chip demo physics routes and live enemy checks pass
+(2,499/2,196 sprite observations). Both music builds pass nine save/menu
+checks. `make test` passes 23/23 scripts (53,139 frames); `gba-opt-test`
+passes 23/23 ROMs. Random-memory tour: 1,228 game frames and all 2,880 screen
+hashes identical. NOINTRO save checks and NOIMPORT demo/save checks pass.
+ZIPs contain one ROM each and pass ZIP CRC plus extracted-ROM SHA-256 checks.
+
 ## Continuation: animated imported enemies (2026-11-10)
 
 Goombas and black Bob-ombs now use the original models and ROM textures,

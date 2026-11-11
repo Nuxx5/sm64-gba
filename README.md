@@ -203,6 +203,38 @@ make save-check save-ui-check
 
 Without the optional capture, the title uses a simple text screen.
 
+
+**Opening FMV:** a locally supplied video can play after New Game, with its
+own audio. Press Start again to skip; holding the title's Start press does
+not skip accidentally. Continue goes straight to gameplay. The existing
+save format is unchanged. Convert entirely headless with ffmpeg and Pillow:
+
+```
+make import-intro VIDEO="/path/to/opening.mp4"
+make demo
+make intro-check            # synthetic converter + native decoder + imported data
+make intro-runtime-check    # full movie, actual pixels/audio/timing, skip/Continue
+make demo NOINTRO=1          # optional build without the movie
+```
+
+The converter removes detected black borders, preserves the active picture's
+proportions, and creates a fixed 256-color 240x160 movie at 14.93 fps (one
+frame per four GBA VBlanks). It streams signed 8-bit mono audio at about
+13.4 kHz via DMA 1 and timer 0. Halfword literal/repeat/unchanged commands
+write directly into alternate Mode 4 VRAM pages; unchanged runs reference
+frame n-2, avoiding a video framebuffer in EWRAM. Audio and palette are
+restored before normal gameplay. A failed conversion preserves the previous
+working import. All media and generated files stay outside Git, under the
+ignored `build/import/intro/` directory; input MP4s are ignored too.
+
+The supplied 30-second opening produces 449 frames, 11,689,046 video bytes
+and 402,432 audio bytes. The sampled-music ROM is 18,500,280 bytes (17.64 MiB),
+within the GBA's 32 MiB cartridge address space; work RAM use is unchanged.
+This has been tested headless in mGBA, including all converted framebuffer
+hashes and zero late frames, rather than on a physical flash cart. Download
+ZIPs contain the built `.gba`: extract that file before opening it. To keep
+an older checkpoint, retain its `.sav` and match its basename to the new ROM.
+
 **Controls:** D-pad = stick, A = A (jump), B = B (punch, dive, kick), R = Z
 (crouch, long jump, ground pound), L + D-pad = rotate and zoom the camera,
 Start = next level (Bob-omb Battlefield, Whomp's Fortress, Cool Cool Mountain,

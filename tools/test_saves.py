@@ -42,7 +42,7 @@ def fixture():
 def run(args, directory, name, keys, save=None, frames=420):
     key_path, out = directory / (name + ".keys"), directory / (name + ".sav")
     key_path.write_text(keys)
-    command = [args.runner, args.rom, "--title-keys", "--frames", str(frames), "--keys", str(key_path), "--save-out", str(out)]
+    command = [args.runner, args.rom, "--title-keys", "--skip-intro", "--frames", str(frames), "--keys", str(key_path), "--save-out", str(out)]
     if save:
         command += ["--save-in", str(save)]
     result = subprocess.run(command, check=True, capture_output=True, text=True)
@@ -90,8 +90,8 @@ def main():
               "confirmed New Game resets the whole saved profile")
         # Hold Start through loading: the title press must not also advance
         # to the next demo level on the first gameplay frame.
-        out, state, log = run(args, d, "held-start", "30 250 S\n", frames=350)
-        check(state["level"] == 0, "holding Start through loading does not skip the first level")
+        out, state, log = run(args, d, "held-start", "30 250 S\n", frames=500)
+        check("\nf " in log and state["level"] == 0, "holding Start through loading does not skip the first level")
         # The oldest complete slot remains valid if the newer copy is torn.
         blob = bytearray(out.read_bytes())
         newest = decode(blob)

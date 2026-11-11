@@ -31,6 +31,7 @@
 #include "music.h"
 #include "save.h"
 #include "title.h"
+#include "intro.h"
 #include "objects.h"
 #include "behavior_data.h"
 #ifdef DEMO_IMPORTED
@@ -333,6 +334,7 @@ static void title_game(void) {
         save_new(&sProgress);
         save_commit(&sSaveStorage, &sProgress);
         if (sDebug) debug_line("game new");
+        intro_run(sDebug ? debug_line : 0);
     } else if (sDebug) debug_line("game continue");
     sLevel = sProgress.level;
     sLives = sProgress.lives;
