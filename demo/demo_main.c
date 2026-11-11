@@ -304,6 +304,10 @@ static s32 sLevel;
 static s32 sLives = START_LIVES;
 static s32 sGameOver;
 #ifndef DEMO_BENCH
+static s32 sRedCoinRewarded;
+static s32 sRedCoinMessage;
+#endif
+#ifndef DEMO_BENCH
 static struct SaveData sProgress;
 static const struct SaveStorage sSaveStorage = {(volatile u8 *) (0x0E000000 + SAVE_RAM_OFFSET), 0, 0};
 static s32 sSavedCoinCount, sSavedLives, sSavedLevel;
@@ -320,6 +324,15 @@ static void save_checkpoint(void) {
         sSavedLives = sLives;
         sSavedLevel = sLevel;
         if (sDebug) debug_line("save committed");
+    }
+}
+
+static void check_red_coin_reward(void) {
+    if (!sRedCoinRewarded && gRedCoinTotal && gRedCoinCount >= gRedCoinTotal) {
+        sRedCoinRewarded = 1;
+        if (sLives < 99) sLives++;
+        save_checkpoint();
+        sRedCoinMessage = 90;
     }
 }
 
@@ -454,6 +467,7 @@ static void load_level(s32 idx) {
     coins_load(idx);
 #ifndef DEMO_BENCH
     coins_set_taken(sProgress.coins[idx]);
+    sRedCoinRewarded = idx == 0 && gRedCoinTotal && gRedCoinCount >= gRedCoinTotal;
 #endif
     spawn_mario();
     objects_load(idx);
@@ -792,6 +806,9 @@ int main(void) {
         mario_frame(keys, pressed);
         check_respawn();
         coins_update(gMarioState->pos);
+#ifndef DEMO_BENCH
+        check_red_coin_reward();
+#endif
         sfx_frame();
         hud_meter_update(gMarioState->health);
         t1 = cycles_now();
@@ -901,6 +918,12 @@ int main(void) {
             }
             hud_text(2, 150, line);
         }
+#ifndef DEMO_BENCH
+        if (sRedCoinMessage > 0) {
+            hud_text(92, 72, "RED COINS! 1UP");
+            sRedCoinMessage--;
+        }
+#endif
         if (showHud && (frame & 7) == 0) {
             char *p = line;
             p = hud_fmt_int(p, (s32) fps, 2);
