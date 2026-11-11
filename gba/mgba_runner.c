@@ -20,6 +20,7 @@
  *   --keys-game FILE  the same, but frames are the demo's game frames (from its
  *                     debug stats), not GBA frames
  *   --start-game     press Start once the title is ready (gameplay checks)
+ *   --skip-intro     press Start once an optional intro is ready
  *   --title-keys     script times relative to title readiness (UI checks)
  *   --save-in FILE   restore a 32 KB SRAM file before boot
  *   --save-out FILE  write SRAM after the last emulated frame
@@ -109,6 +110,7 @@ static void prof_dump(const char *path) {
 static int sKeysByGameFrame;
 static long sGameFrame;
 static int sTitleReady;
+static int sIntroReady, sIntroSkipPhase;
 
 static void on_log(struct mLogger *logger, int category, enum mLogLevel level, const char *format,
                    va_list args) {
@@ -122,6 +124,10 @@ static void on_log(struct mLogger *logger, int category, enum mLogLevel level, c
     vsnprintf(buf, sizeof(buf), format, args);
     if (level == mLOG_INFO) {
         if (strcmp(buf, "title ready") == 0) sTitleReady = 1;
+        if (strcmp(buf, "intro ready") == 0) {
+            sIntroReady = 1;
+            sIntroSkipPhase = 0;
+        }
         if (buf[0] == 'f' && buf[1] == ' ') {
             sGameFrame = strtol(buf + 2, NULL, 16) + 1;
         }
@@ -309,7 +315,7 @@ int main(int argc, char **argv) {
     FILE *audioFile = NULL;
     FILE *spriteFile = NULL;
     const char *saveIn = NULL, *saveOut = NULL;
-    int autoStart = 0, startPhase = 0, titleKeys = 0;
+    int autoStart = 0, startPhase = 0, titleKeys = 0, skipIntro = 0;
     long keyOrigin = 0;
     long audioSamples = 0;
     long dirtySeed = -1;
@@ -338,6 +344,9 @@ int main(int argc, char **argv) {
             sKeysByGameFrame = 1;
         } else if (strcmp(argv[i], "--start-game") == 0) {
             autoStart = 1;
+            skipIntro = 1;
+        } else if (strcmp(argv[i], "--skip-intro") == 0) {
+            skipIntro = 1;
         } else if (strcmp(argv[i], "--title-keys") == 0) {
             titleKeys = 1;
         } else if (strcmp(argv[i], "--save-in") == 0 && i + 1 < argc) {
@@ -438,6 +447,10 @@ int main(int argc, char **argv) {
                     keys = startPhase < 4 ? 8 : 0; /* Start long enough for a 30Hz title */
                     startPhase++;
                 }
+            }
+            if (skipIntro && sIntroReady && sIntroSkipPhase < 5) {
+                keys = sIntroSkipPhase < 4 ? 8 : 0;
+                sIntroSkipPhase++;
             }
             core->setKeys(core, keys);
         }

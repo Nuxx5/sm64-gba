@@ -428,7 +428,7 @@ DEMO_CORE := $(filter-out build/armopt/harness_opt.o build/arm/stubs.o build/arm
              build/arm/mario_step.o
 DEMO_OBJS := build/demo/demo_main.o build/demo/render_build.o build/demo/render_iw.o \
              build/demo/hud.o build/demo/irq.o build/demo/render_tables.o build/demo/stubs.o \
-             build/demo/mannequin.o build/demo/skeleton.o build/demo/coins.o build/demo/actors.o build/demo/sfx.o build/demo/sqrtf_exact.o build/demo/music.o build/demo/title.o build/demo/save.o
+             build/demo/mannequin.o build/demo/skeleton.o build/demo/coins.o build/demo/actors.o build/demo/sfx.o build/demo/sqrtf_exact.o build/demo/music.o build/demo/title.o build/demo/save.o build/demo/intro.o
 DEMO_CFLAGS := -O2 -w -fno-strict-aliasing -Idemo
 
 # Imported assets (make import ROM=...): build/import/import_data.c, made from
@@ -441,8 +441,10 @@ SPRITE_ART_DEF := $(if $(SPRITE_ART_C),-DDEMO_SPRITE_ART,)
 ENEMY_ART_C := $(if $(IMPORT_C),$(wildcard build/import/enemy_art.c),)
 TITLE_ART_C := $(if $(IMPORT_C),$(wildcard build/import/title_art.c),)
 TITLE_ART_DEF := $(if $(TITLE_ART_C),-DDEMO_TITLE_ART,)
+INTRO_DATA := $(if $(NOIMPORT),,$(if $(NOINTRO),,$(wildcard build/import/intro/intro_blob.s)))
+INTRO_DEF := $(if $(INTRO_DATA),-DDEMO_INTRO -Ibuild/import/intro,)
 ENEMY_ART_DEF := $(if $(ENEMY_ART_C),-DDEMO_ENEMY_ART,)
-DEMO_MODE := $(if $(IMPORT_C),imported,plain)$(if $(SPRITE_ART_C),-art,)$(if $(ENEMY_ART_C),-enemies,)$(if $(TITLE_ART_C),-title,)$(if $(wildcard build/import/music_data.c),-music$(if $(filter chip,$(MUSIC)),-chip,),)
+DEMO_MODE := $(if $(IMPORT_C),imported,plain)$(if $(SPRITE_ART_C),-art,)$(if $(ENEMY_ART_C),-enemies,)$(if $(TITLE_ART_C),-title,)$(if $(INTRO_DATA),-intro,)$(if $(wildcard build/import/music_data.c),-music$(if $(filter chip,$(MUSIC)),-chip,),)
 DEMO_DEFS := $(if $(IMPORT_C),-DDEMO_IMPORTED,)
 DEMO_MODE_FILE := build/demo/mode.$(DEMO_MODE)
 $(shell mkdir -p build/demo; [ -f $(DEMO_MODE_FILE) ] || { rm -f build/demo/mode.*; touch $(DEMO_MODE_FILE); })
@@ -467,7 +469,7 @@ build/demo/render_tables.c: tools/gen_render_tables.py | build/demo
 build/demo/render_tables.o: build/demo/render_tables.c
 	$(ARM_CC) $(ARM_ARCH) -O2 -c $< -o $@
 
-build/demo/demo_main.o: demo/demo_main.c demo/sfx.h demo/music.h demo/title.h demo/save.h demo/coins.h demo/actors.h src/obj/objects.h $(OBJ_GEN) demo/render.h demo/hud.h demo/mannequin.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) $(ANIM_SRC) | build/demo
+build/demo/demo_main.o: demo/demo_main.c demo/sfx.h demo/music.h demo/title.h demo/save.h demo/intro.h demo/coins.h demo/actors.h src/obj/objects.h $(OBJ_GEN) demo/render.h demo/hud.h demo/mannequin.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) $(ANIM_SRC) | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(OBJ_CFLAGS) $(DEMO_DEFS) -Idemo -c $< -o $@
 
 build/demo/render_build.o: demo/render_build.c demo/render.h demo/gba.h demo/import.h $(DEMO_MODE_FILE) | build/demo
@@ -596,6 +598,18 @@ build/demo/title.o: demo/title.c demo/title.h demo/gba.h demo/hud.h $(DEMO_MODE_
 	$(ARM_CC) $(ARM_ARCH) $(DEMO_CFLAGS) $(TITLE_ART_DEF) -c $< -o $@
 
 build/demo/save.o: demo/save.c demo/save.h | build/demo
+	$(ARM_CC) $(ARM_ARCH) $(DEMO_CFLAGS) -c $< -o $@
+
+build/demo/intro.o: demo/intro.c demo/intro.h demo/intro_codec.h demo/gba.h $(DEMO_MODE_FILE) $(if $(INTRO_DATA),build/import/intro/intro_data.h,) | build/demo
+	$(ARM_CC) $(ARM_ARCH) $(DEMO_CFLAGS) $(INTRO_DEF) -c $< -o $@
+
+ifneq ($(INTRO_DATA),)
+DEMO_OBJS += build/demo/intro_blob.o build/demo/intro_codec.o
+build/demo/intro_blob.o: $(INTRO_DATA) build/import/intro/video.bin build/import/intro/audio.pcm build/import/intro/palette.bin build/import/intro/offsets.bin | build/demo
+	$(ARM_CC) -mcpu=arm7tdmi -c $< -o $@
+endif
+
+build/demo/intro_codec.o: demo/intro_codec.c demo/intro_codec.h | build/demo
 	$(ARM_CC) $(ARM_ARCH) $(DEMO_CFLAGS) -c $< -o $@
 
 .PHONY: save-check
@@ -776,3 +790,19 @@ clean:
 .PHONY: import-title
 import-title:
 	python3 tools/import_title.py --rom "$(ROM)"
+
+.PHONY: import-intro
+import-intro:
+	$(PYTHON) tools/import_intro.py --video "$(VIDEO)"
+
+.PHONY: intro-check intro-runtime-check
+build/host/intro_codec_check: src/test/intro_codec_check.c demo/intro_codec.c demo/intro_codec.h | build/host
+	$(HOST_CC) -std=c99 -O2 -Wall -Wextra -Idemo src/test/intro_codec_check.c demo/intro_codec.c -o $@
+build/host/intro_codec.so: demo/intro_codec.c demo/intro_codec.h | build/host
+	$(HOST_CC) -std=c99 -O2 -Wall -Wextra -shared -fPIC -Idemo demo/intro_codec.c -o $@
+intro-check: build/host/intro_codec_check build/host/intro_codec.so
+	./build/host/intro_codec_check
+	$(PYTHON) tools/test_intro.py
+intro-runtime-check: build/host/intro_codec_check build/host/intro_codec.so build/demo/sm64demo.gba build/mgba_runner
+	./build/host/intro_codec_check
+	$(PYTHON) tools/test_intro.py --runner build/mgba_runner
