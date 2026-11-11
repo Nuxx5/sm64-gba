@@ -189,9 +189,10 @@ profiles it.
   hurt|stomp` in `tools/demo_physics_check.py`, `--audio` WAV recording.
 
 OAM slots: HUD 0-34, health meter 35, enemies 36-47, coins 48-87, near trees
-88-92, mannequin 93-112, far trees 113-127. OBJ tiles: coins 600-767, enemies
-768-831, trees 832-1001, meter 1002-1017. Palette bank 0: HUD 1-2, coins
-3-10, enemies 11-15; banks 1-12 mannequin, 13 trees, 14 meter. EWRAM is
+88-91, red-coin star 92, mannequin 93-112, far trees 113-127. OBJ tiles:
+coins 600-767, enemies 768-831, trees 832-1001, meter 1002-1017, star
+1018-1021. Palette bank 0: HUD 1-2, coins/star 3-10, enemies 11-15; banks
+1-12 mannequin, 13 trees, 14 meter. EWRAM is
 ~254.7 of 256 KB; IWRAM leaves 3.8 KB of stack (peak 1.9 KB).
 
 ## In progress: music (committed, partly working)
@@ -269,8 +270,9 @@ step because it needs the optional emulator tools and currently supports US.
 
 `demo/save.c` maintains two versioned CRC32 records at SRAM offsets 4096 and
 4224 (outside benchmark data). New records commit magic last. Saved profile:
-level, lives, visited mask, 96 coin flags per each of four levels and best
-coin counts. Autosave on coin/life/level changes; Continue respawns at entrance.
+level, lives, visited mask, star-completion mask, 96 coin flags per each of
+four levels and best coin counts. Autosave on coin/life/level/star changes;
+Continue respawns at entrance.
 `make save-check` tests interrupted writes/corruption; `save-ui-check` boots
 the real ROM repeatedly and exercises title controls and persistent saves.
 Runner `--start-game` bypasses title for existing checks; `--title-keys` uses

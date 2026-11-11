@@ -143,7 +143,7 @@ static void enemy_sprite(struct Object *o, s32 kind, s32 slot, s32 sx, s32 sy,
 #define MAX_TREES 32
 #define TREE_TILE 832       /* after the enemies' (768..831) */
 #define TREE_NEAR_FIRST 88  /* 88..92: in front of Mario (before the mannequin's 93..112) */
-#define TREE_NEAR_COUNT 5
+#define TREE_NEAR_COUNT 4
 #define TREE_FAR_FIRST 113  /* 113..127: behind him */
 #define TREE_FAR_COUNT 15
 #define TREE_BANK 13        /* palette bank (the mannequin's are 1..12) */
@@ -153,11 +153,39 @@ static void enemy_sprite(struct Object *o, s32 kind, s32 slot, s32 sx, s32 sy,
 #define TREE_HEIGHT 600     /* world units (its pole hitbox is 500 tall) */
 #endif
 #define NUM_TREE_SIZES 8
+#define STAR_TILE 1018 /* four free tiles after the meter's 1002..1017 */
+#define STAR_OAM 92
+#define STAR_BANK 0 /* reuse the coin bank's yellow shades (colors 3 and 6) */
+#define STAR_SIZE 16
 static const u8 kTreeSizes[NUM_TREE_SIZES] = { 6, 8, 12, 16, 24, 32, 48, 64 };
 static u16 sTreeTile[NUM_TREE_SIZES];
 static s16 sTrees[MAX_TREES][3];
 static s32 sNumTrees;
 static u16 sTreeOam[TREE_NEAR_COUNT + TREE_FAR_COUNT][3];
+static s32 sStarPos[3], sStarVisible;
+static u16 sStarOam[3];
+
+static const char *const kStarArt[16] = {
+    ".......YY.......", ".......YY.......", "......YYYY......", "......YYYY......",
+    "YYYYYYYYYYYYYYYY", ".YYYYYYYYYYYYYY.", "..YYYYYYYYYYYY..", "...YYYYYYYYYY...",
+    "....YYYYYYYY....", "...YYYYYYYYYY...", "..YYYYYYYYYYYY..", ".YYYYYYYYYYYYYY.",
+    "YYYYYYYYYYYYYYYY", "....YY....YY....", "...YYY....YYY...", "................"
+};
+
+static void star_init(void) {
+    volatile u16 *tiles = OBJ_VRAM_BITMAP;
+    s32 x, y, i;
+    for (y = 0; y < STAR_SIZE; y++) for (x = 0; x < STAR_SIZE; x += 4) {
+        u16 packed = 0;
+        for (i = 0; i < 4; i++) {
+            s32 px = x + i, color = kStarArt[y][px] == 'Y' ? (y < 4 ? 6 : 3) : 0;
+            packed |= (u16) (color << (i * 4));
+        }
+        tiles[(STAR_TILE - 512 + (y >> 3) * 2 + (x >> 3)) * 16 + (y & 7) * 2 + ((x & 4) >> 2)] = packed;
+    }
+    sStarVisible = 0;
+    sStarOam[0] = 0x0200;
+}
 
 #ifdef DEMO_SPRITE_ART
 /* the game's bubbly tree, from your ROM (build/import/sprite_art.c) */
@@ -298,7 +326,14 @@ void actors_init(void) {
     PAL_OBJ[14] = RGB15(248, 248, 248); /* white */
     PAL_OBJ[15] = RGB15(248, 140, 24);  /* orange */
     trees_init();
+    star_init();
     actors_hide();
+}
+
+void actors_star_place(s32 x, s32 y, s32 z, s32 visible) {
+    sStarPos[0] = x; sStarPos[1] = y; sStarPos[2] = z;
+    sStarVisible = visible;
+    if (!visible) sStarOam[0] = 0x0200;
 }
 
 void actors_hide(void) {
@@ -308,6 +343,7 @@ void actors_hide(void) {
     for (i = 0; i < OAM_COUNT; i++) sEnemyPending[i] = NULL;
 #endif
     for (i = 0; i < TREE_NEAR_COUNT + TREE_FAR_COUNT; i++) sTreeOam[i][0] = 0x0200;
+    sStarOam[0] = 0x0200;
 }
 
 /* camera space depth and screen position of a world point; 0 if not drawable */
@@ -355,6 +391,19 @@ static void trees_draw(const struct RCamera *cam, s32 farDist) {
     }
     for (; nNear < TREE_NEAR_COUNT; nNear++) sTreeOam[nNear][0] = 0x0200;
     for (; nFar < TREE_FAR_COUNT; nFar++) sTreeOam[TREE_NEAR_COUNT + nFar][0] = 0x0200;
+}
+
+static void star_draw(const struct RCamera *cam, s32 farDist) {
+    s32 sx, sy, cz;
+    if (!sStarVisible || !project(cam, farDist, sStarPos[0], sStarPos[1], sStarPos[2], &sx, &sy, &cz)
+        || sx < -16 || sx > 256 || sy < -16 || sy > 176) {
+        sStarOam[0] = 0x0200;
+        return;
+    }
+    sx -= STAR_SIZE / 2; sy -= STAR_SIZE / 2;
+    sStarOam[0] = (u16) (sy & 0xFF);
+    sStarOam[1] = (u16) ((sx & 0x1FF) | (1 << 14));
+    sStarOam[2] = (u16) (STAR_TILE | (STAR_BANK << 12));
 }
 
 void actors_draw(const struct RCamera *cam, s32 farDist) {
@@ -423,6 +472,7 @@ void actors_draw(const struct RCamera *cam, s32 farDist) {
 #endif
     }
     trees_draw(cam, farDist);
+    star_draw(cam, farDist);
 }
 
 void actors_commit(void) {
@@ -451,6 +501,9 @@ void actors_commit(void) {
         OAM[at * 4 + 1] = sTreeOam[i][1];
         OAM[at * 4 + 2] = sTreeOam[i][2];
     }
+    OAM[STAR_OAM * 4 + 0] = sStarOam[0];
+    OAM[STAR_OAM * 4 + 1] = sStarOam[1];
+    OAM[STAR_OAM * 4 + 2] = sStarOam[2];
 #ifndef DEMO_ENEMY_ART
     for (i = NUM_ART; i < NUM_SIZES; i++) {
         u16 p = (u16) (16 * 256 / kSizes[i]);

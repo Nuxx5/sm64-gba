@@ -179,6 +179,18 @@ void coins_set_taken(const u8 bits[12]) {
     }
 }
 
+/* The red-coin star appears just beyond the final red coin's position. */
+int coins_red_star_position(s32 *x, s32 *y, s32 *z) {
+    s32 i, found = 0;
+    for (i = 0; i < sNumCoins; i++) if (sCoins[i].red) {
+        *x = (s32) sCoins[i].x + 240;
+        *y = (s32) sCoins[i].y + 120;
+        *z = (s32) sCoins[i].z;
+        found = 1;
+    }
+    return found;
+}
+
 /* Collection: the coin hitboxes (radius 100, height 64) against Mario's
  * (radius 37, height 160), as in the game's obj_collide_with(). */
 __attribute__((section(".iwram"), target("arm"), noinline)) /* every frame, every coin */

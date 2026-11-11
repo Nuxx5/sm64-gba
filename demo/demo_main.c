@@ -310,10 +310,11 @@ static s32 sRedCoinMessage;
 #ifndef DEMO_BENCH
 static struct SaveData sProgress;
 static const struct SaveStorage sSaveStorage = {(volatile u8 *) (0x0E000000 + SAVE_RAM_OFFSET), 0, 0};
-static s32 sSavedCoinCount, sSavedLives, sSavedLevel;
+static s32 sSavedCoinCount, sSavedLives, sSavedLevel, sSavedStars;
 
 static void save_checkpoint(void) {
-    if (gCoinCount == sSavedCoinCount && sLives == sSavedLives && sLevel == sSavedLevel) return;
+    if (gCoinCount == sSavedCoinCount && sLives == sSavedLives && sLevel == sSavedLevel
+        && sProgress.stars == sSavedStars) return;
     sProgress.level = (u8) sLevel;
     sProgress.lives = (u8) sLives;
     sProgress.visited |= (u8) (1 << sLevel);
@@ -323,17 +324,37 @@ static void save_checkpoint(void) {
         sSavedCoinCount = gCoinCount;
         sSavedLives = sLives;
         sSavedLevel = sLevel;
+        sSavedStars = sProgress.stars;
         if (sDebug) debug_line("save committed");
     }
 }
 
+/* Bob-omb Battlefield's eight red coins award a persistent extra life. */
 static void check_red_coin_reward(void) {
     if (!sRedCoinRewarded && gRedCoinTotal && gRedCoinCount >= gRedCoinTotal) {
+        s32 x, y, z;
         sRedCoinRewarded = 1;
         if (sLives < 99) sLives++;
         save_checkpoint();
         sRedCoinMessage = 90;
+        if (sLevel == 0 && !(sProgress.stars & 1) && coins_red_star_position(&x, &y, &z))
+            actors_star_place(x, y, z, 1);
     }
+}
+
+static void check_star_pickup(void) {
+    s32 x, y, z, dx, dy, dz;
+    if (sLevel != 0 || !gRedCoinTotal || gRedCoinCount < gRedCoinTotal
+        || (sProgress.stars & 1) || !coins_red_star_position(&x, &y, &z)) return;
+    dx = (s32) gMarioState->pos[0] - x;
+    dy = (s32) gMarioState->pos[1] + 80 - y;
+    dz = (s32) gMarioState->pos[2] - z;
+    if (dx < -120 || dx > 120 || dy < -180 || dy > 180 || dz < -120 || dz > 120
+        || dx * dx + dz * dz > 120 * 120) return;
+    sProgress.stars |= 1;
+    actors_star_place(x, y, z, 0);
+    save_checkpoint();
+    if (sDebug) debug_line("STAR SAVED");
 }
 
 static void title_game(void) {
@@ -351,8 +372,9 @@ static void title_game(void) {
     } else if (sDebug) debug_line("game continue");
     sLevel = sProgress.level;
     sLives = sProgress.lives;
+    sRedCoinRewarded = 0;
     sGameOver = 0;
-    sSavedCoinCount = sSavedLives = sSavedLevel = -1;
+    sSavedCoinCount = sSavedLives = sSavedLevel = sSavedStars = -1;
 }
 #endif
 
@@ -468,6 +490,13 @@ static void load_level(s32 idx) {
 #ifndef DEMO_BENCH
     coins_set_taken(sProgress.coins[idx]);
     sRedCoinRewarded = idx == 0 && gRedCoinTotal && gRedCoinCount >= gRedCoinTotal;
+    {
+        s32 x, y, z;
+        actors_star_place(0, 0, 0, 0);
+        if (idx == 0 && gRedCoinTotal && gRedCoinCount >= gRedCoinTotal
+            && !(sProgress.stars & (1 << idx)) && coins_red_star_position(&x, &y, &z))
+            actors_star_place(x, y, z, 1);
+    }
 #endif
     spawn_mario();
     objects_load(idx);
@@ -808,6 +837,7 @@ int main(void) {
         coins_update(gMarioState->pos);
 #ifndef DEMO_BENCH
         check_red_coin_reward();
+        check_star_pickup();
 #endif
         sfx_frame();
         hud_meter_update(gMarioState->health);

@@ -27,6 +27,7 @@ void save_new(struct SaveData *data) {
     data->level = 0;
     data->lives = 4;
     data->visited = 1;
+    data->stars = 0;
     for (i = 0; i < SAVE_LEVELS; i++) {
         data->bestCoins[i] = 0;
         for (j = 0; j < SAVE_COIN_BYTES; j++) data->coins[i][j] = 0;
@@ -38,7 +39,7 @@ static int read_slot(const struct SaveStorage *storage, unsigned slot, unsigned 
     for (i = 0; i < SAVE_SLOT_BYTES; i++) record[i] = storage->bytes[at + i];
     if (record[0] != 'S' || record[1] != 'M' || record[2] != 'G' || record[3] != 'B'
         || record[4] != 1 || record[5] != 0 || record[6] != 0 || record[7] != 0
-        || record[12] >= SAVE_LEVELS || record[13] > 99 || record[14] > 15) return 0;
+        || record[12] >= SAVE_LEVELS || record[13] > 99 || record[14] > 15 || record[15] > 15) return 0;
     return crc32(record + 4, SAVE_SLOT_BYTES - 8) == get32(record + SAVE_SLOT_BYTES - 4);
 }
 
@@ -70,6 +71,7 @@ int save_load(const struct SaveStorage *storage, struct SaveData *data) {
     data->level = record[12];
     data->lives = record[13];
     data->visited = record[14];
+    data->stars = record[15];
     for (i = 0; i < SAVE_LEVELS; i++) {
         for (j = 0; j < SAVE_COIN_BYTES; j++) data->coins[i][j] = record[16 + i * SAVE_COIN_BYTES + j];
         data->bestCoins[i] = (unsigned short) (record[64 + i * 2] | (record[65 + i * 2] << 8));
@@ -87,7 +89,7 @@ int save_commit(const struct SaveStorage *storage, const struct SaveData *data) 
     unsigned sequence = 0, i, j, at;
     unsigned char record[SAVE_SLOT_BYTES];
     int previous;
-    if (data->level >= SAVE_LEVELS || data->lives > 99 || data->visited > 15) return 0;
+    if (data->level >= SAVE_LEVELS || data->lives > 99 || data->visited > 15 || data->stars > 15) return 0;
     previous = newest_slot(storage, &sequence);
     at = (previous == 0 ? 1u : 0u) * SAVE_SLOT_STRIDE;
     for (i = 0; i < SAVE_SLOT_BYTES; i++) record[i] = 0;
@@ -97,6 +99,7 @@ int save_commit(const struct SaveStorage *storage, const struct SaveData *data) 
     record[12] = data->level;
     record[13] = data->lives;
     record[14] = data->visited;
+    record[15] = data->stars;
     for (i = 0; i < SAVE_LEVELS; i++) {
         for (j = 0; j < SAVE_COIN_BYTES; j++) record[16 + i * SAVE_COIN_BYTES + j] = data->coins[i][j];
         record[64 + 2 * i] = (unsigned char) data->bestCoins[i];

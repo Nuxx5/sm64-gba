@@ -9,6 +9,7 @@
 
 struct SaveData {
     unsigned char level, lives, visited;
+    unsigned char stars;
     unsigned char coins[SAVE_LEVELS][SAVE_COIN_BYTES];
     unsigned short bestCoins[SAVE_LEVELS];
 };

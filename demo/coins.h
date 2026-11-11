@@ -9,6 +9,7 @@ void coins_init(void);                  /* sprite tiles and palette (once) */
 void coins_load(s32 level);             /* placements from the level's macro objects */
 void coins_get_taken(u8 bits[12]);       /* stable per-level coin IDs for checkpoints */
 void coins_set_taken(const u8 bits[12]);
+int coins_red_star_position(s32 *x, s32 *y, s32 *z);
 void coins_update(const f32 *marioPos); /* collect the coins Mario touches */
 void coins_draw(const struct RCamera *cam, s32 farDist);
 void coins_hide(void);
