@@ -19,7 +19,7 @@ def decode(blob):
         if zlib.crc32(b[4:92]) != struct.unpack_from("<I", b, 92)[0]:
             continue
         sequence = struct.unpack_from("<I", b, 8)[0]
-        records.append(dict(slot=slot, sequence=sequence, level=b[12], lives=b[13], visited=b[14],
+        records.append(dict(slot=slot, sequence=sequence, level=b[12], lives=b[13], visited=b[14], stars=b[15],
                             coins=b[16:64], best=struct.unpack_from("<4H", b, 64)))
     if not records:
         return None
@@ -32,6 +32,7 @@ def fixture():
     b[:8] = b"SMGB\x01\0\0\0"
     struct.pack_into("<I", b, 8, 10)
     b[12:15] = bytes([2, 3, 7])
+    b[15] = 1
     b[16] = 5
     struct.pack_into("<4H", b, 64, 17, 8, 0, 0)
     struct.pack_into("<I", b, 92, zlib.crc32(b[4:92]))
@@ -79,6 +80,7 @@ def main():
         out, state, log = run(args, d, "continue", "30 36 A\n", seed, frames=260)
         check("game continue" in log and state["level"] == 2 and state["lives"] == 3,
               "Continue restores the last level and lives after a power cycle")
+        check(state["stars"] == 1, "completed-star progress survives Continue")
         check(state["coins"][0] == 5 and state["best"][0] == 17,
               "collected coins and best coin counts survive another boot")
         out, state, log = run(args, d, "cancel", "30 36 S\n50 56 B\n80 86 A\n", seed, frames=300)
@@ -86,7 +88,8 @@ def main():
               "canceling New Game preserves the existing checkpoint")
         out, state, log = run(args, d, "replace", "30 36 S\n50 56 A\n", seed)
         check("title confirm" in log and "game new" in log and state["level"] == 0
-              and state["lives"] == 4 and not any(state["coins"]) and state["best"] == (0, 0, 0, 0),
+              and state["lives"] == 4 and not any(state["coins"]) and state["stars"] == 0
+              and state["best"] == (0, 0, 0, 0),
               "confirmed New Game resets the whole saved profile")
         # Hold Start through loading: the title press must not also advance
         # to the next demo level on the first gameplay frame.

@@ -490,7 +490,9 @@ deliberately; physics was never touched:
   drawn stand-in. Mario collects them (counter at the
   bottom left); they don't affect his physics, so the parity check is
   unchanged. They're plain hardware sprites, not depth tested, and drawn over
-  Mario. No coin boxes and no red coin star yet.
+  Mario. Collect all eight red coins to make a star appear beside the final
+  pickup; touch it to save Bob-omb Battlefield's star objective. The star is a
+  separate hardware sprite and survives Continue.
 - **Enemies, in Bob-omb Battlefield: Goombas and Bob-ombs.** The decomp's own
   object system runs on the GBA: object list processor, behavior script
   interpreter, `object_helpers.c`, object collision and Mario's
